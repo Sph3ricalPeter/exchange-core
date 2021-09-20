@@ -49,7 +49,7 @@ public interface IOrderBook extends WriteBytesMarshallable, StateHash {
     /**
      * Cancel order completely.
      * <p>
-     * fills cmd.action  with original original order action
+     * fills cmd.action  with original order action
      *
      * @param cmd - order command
      * @return MATCHING_UNKNOWN_ORDER_ID if order was not found, otherwise SUCCESS
@@ -70,7 +70,7 @@ public interface IOrderBook extends WriteBytesMarshallable, StateHash {
      * Move order
      * <p>
      * newPrice - new price (if 0 or same - order will not moved)
-     * fills cmd.action  with original original order action
+     * fills cmd.action  with original order action
      *
      * @param cmd - order command
      * @return MATCHING_UNKNOWN_ORDER_ID if order was not found, otherwise SUCCESS

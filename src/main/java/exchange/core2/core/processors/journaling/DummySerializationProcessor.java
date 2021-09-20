@@ -49,7 +49,7 @@ public class DummySerializationProcessor implements ISerializationProcessor {
     }
 
     @Override
-    public void replayJournalFullAndThenEnableJouraling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi) {
+    public void replayJournalFullAndThenEnableJournaling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi) {
         // do nothing
     }
 }

@@ -218,7 +218,7 @@ public final class ExchangeCore {
             disruptor.start();
             started = true;
 
-            serializationProcessor.replayJournalFullAndThenEnableJouraling(exchangeConfiguration.getInitStateCfg(), api);
+            serializationProcessor.replayJournalFullAndThenEnableJournaling(exchangeConfiguration.getInitStateCfg(), api);
         }
     }
 

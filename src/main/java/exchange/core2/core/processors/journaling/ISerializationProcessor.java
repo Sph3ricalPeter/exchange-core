@@ -103,7 +103,7 @@ public interface ISerializationProcessor {
 
     long replayJournalFull(InitialStateConfiguration initialStateConfiguration, ExchangeApi api);
 
-    void replayJournalFullAndThenEnableJouraling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi);
+    void replayJournalFullAndThenEnableJournaling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi);
 
     @AllArgsConstructor
     enum SerializedModuleType {

@@ -626,7 +626,7 @@ public final class DiskSerializationProcessor implements ISerializationProcessor
 
 
     @Override
-    public void replayJournalFullAndThenEnableJouraling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi) {
+    public void replayJournalFullAndThenEnableJournaling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi) {
         long seq = replayJournalFull(initialStateConfiguration, exchangeApi);
         enableJournaling(seq, exchangeApi);
     }
