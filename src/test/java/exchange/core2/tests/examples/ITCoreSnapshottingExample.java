@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.ExchangeCore;
 import exchange.core2.core.IEventsHandler;
+import exchange.core2.core.IEventsHandler.TradeEvent;
 import exchange.core2.core.SimpleEventsProcessor;
 import exchange.core2.core.common.CoreSymbolSpecification;
 import exchange.core2.core.common.L2MarketData;
@@ -30,10 +31,13 @@ import exchange.core2.core.common.config.OrdersProcessingConfiguration;
 import exchange.core2.core.common.config.PerformanceConfiguration;
 import exchange.core2.core.common.config.ReportsQueriesConfiguration;
 import exchange.core2.core.common.config.SerializationConfiguration;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
@@ -44,6 +48,8 @@ public class ITCoreSnapshottingExample {
   private static final int CURRENCY_XBT = 11;
   private static final int CURRENCY_LTC = 15;
   private static final int SYMBOL_XBT_LTC = 241;
+
+  private final List<TradeEvent> trades = new ArrayList<>();
 
   public ExchangeConfigurationBuilder testExchangeConfCleanBuilder() {
     return ExchangeConfiguration.builder()
@@ -65,18 +71,21 @@ public class ITCoreSnapshottingExample {
   }
 
   public ExchangeConfigurationBuilder testExchangeConfFromSnapshot(long snapshotId, long baseSeq) {
-    return testExchangeConfCleanBuilder().initStateCfg(InitialStateConfiguration.fromSnapshotOnly(EXCHANGE_ID, snapshotId, baseSeq));
+    return testExchangeConfCleanBuilder()
+        .initStateCfg(InitialStateConfiguration.fromSnapshotOnly(EXCHANGE_ID, snapshotId, baseSeq));
   }
 
   @Test
-  public void testCleanStartInitShutdownThenStartFromSnapshot_balanceReportsShouldEqual() throws ExecutionException, InterruptedException {
+  public void testCleanStartInitShutdownThenStartFromSnapshot_balanceReportsShouldEqual()
+      throws ExecutionException, InterruptedException {
     /* ========= 1ST RUN ========= */
     System.out.println("Starting clean");
     ExchangeConfiguration conf = testExchangeConfCleanBuilder().build();
-    ExchangeCore ec = ExchangeCore.builder()
-        .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler()))
-        .exchangeConfiguration(conf)
-        .build();
+    ExchangeCore ec =
+        ExchangeCore.builder()
+            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(trades)))
+            .exchangeConfiguration(conf)
+            .build();
     ec.startup();
 
     ExchangeApi api = ec.getApi();
@@ -95,8 +104,8 @@ public class ITCoreSnapshottingExample {
             .makerFee(700L) // maker fee 700 litoshi per 1 lot
             .build();
 
-    Future<CommandResultCode> future = api.submitBinaryDataAsync(
-        new BatchAddSymbolsCommand(symbolSpecXbtLtc));
+    Future<CommandResultCode> future =
+        api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbolSpecXbtLtc));
     System.out.println("BatchAddSymbolsCommand result: " + future.get());
 
     // create user uid=301
@@ -135,6 +144,11 @@ public class ITCoreSnapshottingExample {
     // he assumes BTCLTC exchange rate 154 LTC for 1 BTC
     // bid price for 1 lot (0.01BTC) is 1.54 LTC => 1_5400_0000 litoshi => 10K * 15_400 (in price
     // steps)
+
+    // BTC: 1 lot = 0.01BTC = 1_000_000 sats
+    // LTC: 1 lot = 0.0001LTC = 10_000 lits
+    // price per 0.01BTC is 15_400L lits = 1.54LTC, so for 1BTC they need to pay 154LTC
+
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
@@ -192,7 +206,7 @@ public class ITCoreSnapshottingExample {
     conf = testExchangeConfFromSnapshot(123, 11).build();
     ec =
         ExchangeCore.builder()
-            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler()))
+            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(trades)))
             .exchangeConfiguration(conf)
             .build();
     ec.startup();
@@ -200,17 +214,33 @@ public class ITCoreSnapshottingExample {
     api = ec.getApi();
 
     // do stuff
-    // second user deposits 0.10 BTC
+    // second user deposits 0.10 BTC, test should fail
     /*future =
-        api.submitCommandAsync(
-            ApiAdjustUserBalance.builder()
-                .uid(302L)
-                .currency(CURRENCY_XBT)
-                .amount(10_000_000L)
-                .transactionId(10L)
-                .build());*/
+    api.submitCommandAsync(
+        ApiAdjustUserBalance.builder()
+            .uid(302L)
+            .currency(CURRENCY_XBT)
+            .amount(10_000_000L)
+            .transactionId(10L)
+            .build());
 
-    System.out.println("ApiAdjustUserBalance 2 result: " + future.get());
+    System.out.println("ApiAdjustUserBalance 2 result: " + future.get());*/
+
+    // second user places Immediate-or-Cancel Ask (Sell) order
+    // he assumes wost rate to sell 152.5 LTC for 1 BTC
+    future =
+        api.submitCommandAsync(
+            ApiPlaceOrder.builder()
+                .uid(302L)
+                .orderId(5003L)
+                .price(15_250L)
+                .size(2L) // order size is 2 lots
+                .action(OrderAction.ASK)
+                .orderType(OrderType.IOC) // Immediate-or-Cancel
+                .symbol(SYMBOL_XBT_LTC)
+                .build());
+
+    System.out.println("ApiPlaceOrder 3 result: " + future.get());
 
     Future<SingleUserReportResult> report11 = api.processReport(new SingleUserReportQuery(301), 0);
     System.out.println(report11.get());
@@ -229,13 +259,23 @@ public class ITCoreSnapshottingExample {
 
     ec.shutdown();
 
+    System.out.println(trades.size());
+    for (TradeEvent trade : trades) {
+      System.out.println(trade);
+    }
+
     assertEquals(balancesReport0.get(), balancesReport1.get());
   }
 
+  @AllArgsConstructor
   public static class TestEventHandler implements IEventsHandler {
+
+    private List<TradeEvent> trades;
+
     @Override
     public void tradeEvent(TradeEvent tradeEvent) {
       System.out.println("Trade event: " + tradeEvent);
+      trades.add(tradeEvent);
     }
 
     @Override
