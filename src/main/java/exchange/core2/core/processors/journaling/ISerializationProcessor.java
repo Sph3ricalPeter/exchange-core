@@ -19,6 +19,7 @@ import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.common.cmd.OrderCommand;
 import exchange.core2.core.common.config.InitialStateConfiguration;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import net.openhft.chronicle.bytes.BytesIn;
 import net.openhft.chronicle.bytes.WriteBytesMarshallable;
 
@@ -106,6 +107,7 @@ public interface ISerializationProcessor {
     void replayJournalFullAndThenEnableJournaling(InitialStateConfiguration initialStateConfiguration, ExchangeApi exchangeApi);
 
     @AllArgsConstructor
+    @Getter
     enum SerializedModuleType {
         RISK_ENGINE("RE"),
         MATCHING_ENGINE_ROUTER("ME");

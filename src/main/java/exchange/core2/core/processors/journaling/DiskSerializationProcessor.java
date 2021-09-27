@@ -57,6 +57,7 @@ public final class DiskSerializationProcessor implements ISerializationProcessor
 
     private final String exchangeId; // TODO validate
     private final Path folder;
+    private final boolean replaceFiles;
 
     private final long baseSeq;
 
@@ -98,6 +99,7 @@ public final class DiskSerializationProcessor implements ISerializationProcessor
 
         this.exchangeId = initStateCfg.getExchangeId();
         this.folder = Paths.get(diskConfig.getStorageFolder());
+        this.replaceFiles = diskConfig.isReplaceFiles();
         this.baseSnapshotId = initStateCfg.getSnapshotId();
         this.baseSeq = initStateCfg.getSnapshotBaseSeq();
 
@@ -131,6 +133,14 @@ public final class DiskSerializationProcessor implements ISerializationProcessor
                              WriteBytesMarshallable obj) {
 
         final Path path = resolveSnapshotPath(snapshotId, type, instanceId);
+        if (Files.exists(path) && replaceFiles) {
+            try {
+                Files.delete(path);
+            } catch (IOException ex) {
+                log.error("Can not delete snapshot file: ", ex);
+                return false;
+            }
+        }
 
         log.debug("Writing state into file {} ...", path);
 

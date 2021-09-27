@@ -26,13 +26,19 @@ public class SerializationConfiguration {
     // no journaling, only snapshots
     public static final SerializationConfiguration DISK_SNAPSHOT_ONLY = SerializationConfiguration.builder()
             .enableJournaling(false)
-            .serializationProcessorFactory(exchangeCfg -> new DiskSerializationProcessor(exchangeCfg, DiskSerializationProcessorConfiguration.createDefaultConfig()))
+            .serializationProcessorFactory(exchangeCfg -> new DiskSerializationProcessor(exchangeCfg, DiskSerializationProcessorConfiguration.defaultConfigBuilder().build()))
             .build();
+
+    // no journaling, only snapshots, replace files on conflict
+    public static final SerializationConfiguration DISK_SNAPSHOT_ONLY_REPLACE = SerializationConfiguration.builder()
+        .enableJournaling(false)
+        .serializationProcessorFactory(exchangeCfg -> new DiskSerializationProcessor(exchangeCfg, DiskSerializationProcessorConfiguration.defaultConfigBuilder().replaceFiles(true).build()))
+        .build();
 
     // snapshots and journaling
     public static final SerializationConfiguration DISK_JOURNALING = SerializationConfiguration.builder()
             .enableJournaling(true)
-            .serializationProcessorFactory(exchangeCfg -> new DiskSerializationProcessor(exchangeCfg, DiskSerializationProcessorConfiguration.createDefaultConfig()))
+            .serializationProcessorFactory(exchangeCfg -> new DiskSerializationProcessor(exchangeCfg, DiskSerializationProcessorConfiguration.defaultConfigBuilder().build()))
             .build();
 
     /*

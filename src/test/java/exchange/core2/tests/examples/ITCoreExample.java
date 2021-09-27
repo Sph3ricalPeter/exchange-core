@@ -30,6 +30,9 @@ import java.util.concurrent.Future;
 @Slf4j
 public class ITCoreExample {
 
+  private static boolean CLEAN_START = false;
+  private long loadedSnapshot = 69;
+
   @Test
   public void sampleTest() throws Exception {
 
@@ -71,10 +74,12 @@ public class ITCoreExample {
         ExchangeConfiguration.builder()
             .ordersProcessingCfg(OrdersProcessingConfiguration.DEFAULT)
             .initStateCfg(
+                CLEAN_START ?
+                InitialStateConfiguration.cleanStart("MY_EXCHANGE") :
                 InitialStateConfiguration.fromSnapshotOnly(
                     "MY_EXCHANGE",
-                    70,
-                    14)) // clean start with snapshot because journal doesn't seem to work
+                    loadedSnapshot,
+                    19)) // clean start with snapshot because journal doesn't seem to work
             .performanceCfg(PerformanceConfiguration.DEFAULT) // balanced perf. config
             .reportsQueriesCfg(
                 ReportsQueriesConfiguration
@@ -82,13 +87,15 @@ public class ITCoreExample {
             // reports but how?
             .loggingCfg(
                 LoggingConfiguration.builder()
-                    .loggingLevels(EnumSet.of(LoggingLevel.LOGGING_WARNINGS /*,
+                    .loggingLevels(
+                        EnumSet.of(
+                            LoggingLevel.LOGGING_WARNINGS,
                             LoggingLevel.LOGGING_MATCHING_DEBUG,
-                            LoggingLevel.LOGGING_RISK_DEBUG*/))
+                            LoggingLevel.LOGGING_RISK_DEBUG))
                     .build())
             .serializationCfg(
                 SerializationConfiguration
-                    .DISK_SNAPSHOT_ONLY) // default disk journalling to the `dumps` folder
+                    .DISK_SNAPSHOT_ONLY_REPLACE) // default disk journalling to the `dumps` folder
             .build();
 
     // build exchange core
@@ -180,6 +187,9 @@ public class ITCoreExample {
 
     System.out.println("ApiPlaceOrder 1 result: " + future.get());
 
+    Future<SingleUserReportResult> report0 = api.processReport(new SingleUserReportQuery(301), 0);
+    System.out.println(report0.get());
+
     // second user places Immediate-or-Cancel Ask (Sell) order
     // he assumes wost rate to sell 152.5 LTC for 1 BTC
     future =
@@ -195,6 +205,9 @@ public class ITCoreExample {
                 .build());
 
     System.out.println("ApiPlaceOrder 2 result: " + future.get());
+
+    Future<SingleUserReportResult> report1 = api.processReport(new SingleUserReportQuery(302), 0);
+    System.out.println(report1.get());
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture = api.requestOrderBookAsync(symbolXbtLtc, 10);
@@ -220,11 +233,11 @@ public class ITCoreExample {
     System.out.println("ApiCancelOrder 2 result: " + future.get());
 
     // check balances
-    Future<SingleUserReportResult> report1 = api.processReport(new SingleUserReportQuery(301), 0);
-    System.out.println("SingleUserReportQuery 1 accounts: " + report1.get().getAccounts());
+    Future<SingleUserReportResult> report2 = api.processReport(new SingleUserReportQuery(301), 0);
+    System.out.println(report2.get());
 
-    Future<SingleUserReportResult> report2 = api.processReport(new SingleUserReportQuery(302), 0);
-    System.out.println("SingleUserReportQuery 2 accounts: " + report2.get().getAccounts());
+    Future<SingleUserReportResult> report3 = api.processReport(new SingleUserReportQuery(302), 0);
+    System.out.println(report3.get());
 
     // first user withdraws 0.10 BTC
     future =
@@ -244,8 +257,9 @@ public class ITCoreExample {
     System.out.println("LTC fees collected: " + totalsReport.get().getFees().get(currencyCodeLtc));
 
     // test snapshotting
-    /*future = api.submitCommandAsync(ApiPersistState.builder().dumpId(70).build());
+    future = api.submitCommandAsync(ApiPersistState.builder().dumpId(loadedSnapshot + 1).build());
+    System.out.println("ApiPersistState result: " + future.get());
 
-    System.out.println("ApiPersistState result: " + future.get());*/
+    exchangeCore.shutdown();
   }
 }
