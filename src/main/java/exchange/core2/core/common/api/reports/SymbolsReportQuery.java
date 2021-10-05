@@ -20,6 +20,11 @@ import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 @Slf4j
 public final class SymbolsReportQuery implements ReportQuery<SymbolsReportResult> {
 
+  // errors out if not present, not sure why ...
+  public SymbolsReportQuery(BytesIn bytesIn) {
+    // do nothing
+  }
+
   @Override
   public int getReportTypeCode() {
     return ReportType.SYMBOLS.getCode();
