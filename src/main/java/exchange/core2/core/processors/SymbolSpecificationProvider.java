@@ -62,6 +62,10 @@ public final class SymbolSpecificationProvider implements WriteBytesMarshallable
         return symbolSpecs.get(symbol);
     }
 
+    public IntObjectHashMap<CoreSymbolSpecification> getSymbolSpecs() {
+        return symbolSpecs;
+    }
+
     /**
      * register new symbol specification
      *

@@ -22,8 +22,10 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 import net.openhft.chronicle.bytes.*;
 import net.openhft.chronicle.wire.Wire;
 import net.openhft.chronicle.wire.WireType;
+import org.eclipse.collections.api.map.primitive.MutableIntIntMap;
 import org.eclipse.collections.api.map.primitive.MutableIntLongMap;
 import org.eclipse.collections.api.map.primitive.MutableLongIntMap;
+import org.eclipse.collections.impl.map.mutable.primitive.IntIntHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongIntHashMap;
@@ -220,6 +222,16 @@ public final class SerializationUtils {
         });
     }
 
+    public static void marshallIntIntHashMap(final MutableIntIntMap hashMap, final BytesOut bytes) {
+
+        bytes.writeInt(hashMap.size());
+
+        hashMap.forEachKeyValue((k, v) -> {
+            bytes.writeInt(k);
+            bytes.writeInt(v);
+        });
+    }
+
     public static IntLongHashMap readIntLongHashMap(final BytesIn bytes) {
         int length = bytes.readInt();
         final IntLongHashMap hashMap = new IntLongHashMap(length);
@@ -232,6 +244,17 @@ public final class SerializationUtils {
         return hashMap;
     }
 
+    public static IntIntHashMap readIntIntHashMap(final BytesIn bytes) {
+        int length = bytes.readInt();
+        final IntIntHashMap hashMap = new IntIntHashMap(length);
+        // TODO shuffle (? performance can be reduced if populating linearly)
+        for (int i = 0; i < length; i++) {
+            int k = bytes.readInt();
+            int v = bytes.readInt();
+            hashMap.put(k, v);
+        }
+        return hashMap;
+    }
 
     public static void marshallLongHashSet(final LongHashSet set, final BytesOut bytes) {
         bytes.writeInt(set.size());

@@ -24,7 +24,9 @@ public enum ReportType {
 
     SINGLE_USER_REPORT(10002),
 
-    TOTAL_CURRENCY_BALANCE(10003);
+    TOTAL_CURRENCY_BALANCE(10003),
+
+    SYMBOLS(10004);
 
     private final int code;
 
@@ -41,6 +43,8 @@ public enum ReportType {
                 return SINGLE_USER_REPORT;
             case 10003:
                 return TOTAL_CURRENCY_BALANCE;
+            case 10004:
+                return SYMBOLS;
             default:
                 throw new IllegalArgumentException("unknown ReportType:" + code);
         }

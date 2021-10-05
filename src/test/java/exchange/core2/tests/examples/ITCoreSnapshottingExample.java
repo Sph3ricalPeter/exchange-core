@@ -17,8 +17,14 @@ import exchange.core2.core.common.api.ApiAdjustUserBalance;
 import exchange.core2.core.common.api.ApiPersistState;
 import exchange.core2.core.common.api.ApiPlaceOrder;
 import exchange.core2.core.common.api.binary.BatchAddSymbolsCommand;
+import exchange.core2.core.common.api.reports.ReportQuery;
+import exchange.core2.core.common.api.reports.ReportType;
 import exchange.core2.core.common.api.reports.SingleUserReportQuery;
 import exchange.core2.core.common.api.reports.SingleUserReportResult;
+import exchange.core2.core.common.api.reports.StateHashReportQuery;
+import exchange.core2.core.common.api.reports.StateHashReportResult;
+import exchange.core2.core.common.api.reports.SymbolsReportQuery;
+import exchange.core2.core.common.api.reports.SymbolsReportResult;
 import exchange.core2.core.common.api.reports.TotalCurrencyBalanceReportQuery;
 import exchange.core2.core.common.api.reports.TotalCurrencyBalanceReportResult;
 import exchange.core2.core.common.cmd.CommandResultCode;
@@ -33,7 +39,9 @@ import exchange.core2.core.common.config.ReportsQueriesConfiguration;
 import exchange.core2.core.common.config.SerializationConfiguration;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -49,16 +57,34 @@ public class ITCoreSnapshottingExample {
   private static final int CURRENCY_LTC = 15;
   private static final int SYMBOL_XBT_LTC = 241;
 
+  private static final CoreSymbolSpecification SYMBOL_SPEC_XBT_LTC =
+      CoreSymbolSpecification.builder()
+          .symbolId(SYMBOL_XBT_LTC) // symbol id
+          .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
+          .baseCurrency(CURRENCY_XBT) // base = satoshi (1E-8)
+          .quoteCurrency(CURRENCY_LTC) // quote = litoshi (1E-8)
+          .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
+          .quoteScaleK(10_000L) // 1 price step = 10K litoshi
+          .takerFee(1900L) // taker fee 1900 litoshi per 1 lot
+          .makerFee(700L) // maker fee 700 litoshi per 1 lot
+          .build();
+
   private final List<TradeEvent> trades = new ArrayList<>();
 
-  public ExchangeConfigurationBuilder testExchangeConfCleanBuilder() {
+  public static Map<Integer, Class<? extends ReportQuery<?>>> createCustomReports() {
+    final Map<Integer, Class<? extends ReportQuery<?>>> queries = new HashMap<>();
+    queries.put(ReportType.SYMBOLS.getCode(), SymbolsReportQuery.class);
+    return queries;
+  }
+
+  public static ExchangeConfigurationBuilder testExchangeConfCleanBuilder() {
     return ExchangeConfiguration.builder()
         .ordersProcessingCfg(OrdersProcessingConfiguration.DEFAULT)
         .initStateCfg(InitialStateConfiguration.cleanStart(EXCHANGE_ID))
         .performanceCfg(PerformanceConfiguration.DEFAULT) // balanced perf. config
-        .reportsQueriesCfg(
-            ReportsQueriesConfiguration
-                .DEFAULT) // no idea how to use reports, should be possible to write custom reports
+        .reportsQueriesCfg(ReportsQueriesConfiguration.createStandardConfig(
+            ITCoreSnapshottingExample.createCustomReports()
+        )) // no idea how to use reports, should be possible to write custom reports
         // but how?
         .loggingCfg(
             LoggingConfiguration.builder()
@@ -90,22 +116,8 @@ public class ITCoreSnapshottingExample {
 
     ExchangeApi api = ec.getApi();
 
-    // do stuff
-    // create symbol specification and publish it
-    CoreSymbolSpecification symbolSpecXbtLtc =
-        CoreSymbolSpecification.builder()
-            .symbolId(SYMBOL_XBT_LTC) // symbol id
-            .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
-            .baseCurrency(CURRENCY_XBT) // base = satoshi (1E-8)
-            .quoteCurrency(CURRENCY_LTC) // quote = litoshi (1E-8)
-            .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
-            .quoteScaleK(10_000L) // 1 price step = 10K litoshi
-            .takerFee(1900L) // taker fee 1900 litoshi per 1 lot
-            .makerFee(700L) // maker fee 700 litoshi per 1 lot
-            .build();
-
     Future<CommandResultCode> future =
-        api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbolSpecXbtLtc));
+        api.submitBinaryDataAsync(new BatchAddSymbolsCommand(SYMBOL_SPEC_XBT_LTC));
     System.out.println("BatchAddSymbolsCommand result: " + future.get());
 
     // create user uid=301
@@ -257,6 +269,11 @@ public class ITCoreSnapshottingExample {
         api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
     System.out.println(balancesReport1.get());
 
+    Future<SymbolsReportResult> symbolsReport =
+        api.processReport(new SymbolsReportQuery(), 0);
+    System.out.println(symbolsReport.get());
+
+    // core SHUTDOWN, nothing will happend in the core after this point
     ec.shutdown();
 
     System.out.println(trades.size());
@@ -270,12 +287,12 @@ public class ITCoreSnapshottingExample {
   @AllArgsConstructor
   public static class TestEventHandler implements IEventsHandler {
 
-    private List<TradeEvent> trades;
+    private List<TradeEvent> tradeHistory;
 
     @Override
     public void tradeEvent(TradeEvent tradeEvent) {
       System.out.println("Trade event: " + tradeEvent);
-      trades.add(tradeEvent);
+      tradeHistory.add(tradeEvent);
     }
 
     @Override
