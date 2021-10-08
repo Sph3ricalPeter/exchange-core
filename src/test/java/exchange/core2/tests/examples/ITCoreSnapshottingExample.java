@@ -12,17 +12,15 @@ import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.OrderAction;
 import exchange.core2.core.common.OrderType;
 import exchange.core2.core.common.SymbolType;
-import exchange.core2.core.common.api.ApiAddUser;
 import exchange.core2.core.common.api.ApiAdjustUserBalance;
 import exchange.core2.core.common.api.ApiPersistState;
 import exchange.core2.core.common.api.ApiPlaceOrder;
+import exchange.core2.core.common.api.binary.BatchAddAccountsCommand;
 import exchange.core2.core.common.api.binary.BatchAddSymbolsCommand;
 import exchange.core2.core.common.api.reports.ReportQuery;
 import exchange.core2.core.common.api.reports.ReportType;
 import exchange.core2.core.common.api.reports.SingleUserReportQuery;
 import exchange.core2.core.common.api.reports.SingleUserReportResult;
-import exchange.core2.core.common.api.reports.StateHashReportQuery;
-import exchange.core2.core.common.api.reports.StateHashReportResult;
 import exchange.core2.core.common.api.reports.SymbolsReportQuery;
 import exchange.core2.core.common.api.reports.SymbolsReportResult;
 import exchange.core2.core.common.api.reports.TotalCurrencyBalanceReportQuery;
@@ -47,26 +45,44 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
+import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 import org.junit.Test;
 
 @Slf4j
 public class ITCoreSnapshottingExample {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
+
+  private static final int CURRENCY_EUR = 10;
   private static final int CURRENCY_XBT = 11;
   private static final int CURRENCY_LTC = 15;
-  private static final int SYMBOL_XBT_LTC = 241;
 
-  private static final CoreSymbolSpecification SYMBOL_SPEC_XBT_LTC =
+  private static final int SYMBOL_XBT_EUR = 240;
+  private static final int SYMBOL_LTC_XBT = 241;
+
+  private static final CoreSymbolSpecification SYMBOL_SPEC_XBT_EUR =
       CoreSymbolSpecification.builder()
-          .symbolId(SYMBOL_XBT_LTC) // symbol id
+          .symbolId(SYMBOL_XBT_EUR) // symbol id
           .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
           .baseCurrency(CURRENCY_XBT) // base = satoshi (1E-8)
-          .quoteCurrency(CURRENCY_LTC) // quote = litoshi (1E-8)
+          .quoteCurrency(CURRENCY_EUR) // quote = cents (1E-2)
           .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
-          .quoteScaleK(10_000L) // 1 price step = 10K litoshi
-          .takerFee(1900L) // taker fee 1900 litoshi per 1 lot
-          .makerFee(700L) // maker fee 700 litoshi per 1 lot
+          .quoteScaleK(100L) // 1 price step = 100 cents (1 EUR), can buy BTC with 1 EUR steps
+          .takerFee(1L) // taker fee 1 cent per 1 lot
+          .makerFee(3L) // maker fee 3 cents per 1 lot
+          .build();
+
+  private static final CoreSymbolSpecification SYMBOL_SPEC_LTC_XBT =
+      CoreSymbolSpecification.builder()
+          .symbolId(SYMBOL_LTC_XBT) // symbol id
+          .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
+          .baseCurrency(CURRENCY_LTC) // base = satoshi (1E-8)
+          .quoteCurrency(CURRENCY_XBT) // quote = litoshi (1E-8)
+          .baseScaleK(10_000L) // 1 price step = 10K litoshi
+          .quoteScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
+          .takerFee(100L) // taker fee 100 satoshi per 1 lot (0.01%)
+          .makerFee(300L) // maker fee 300 satoshi per 1 lot (0.03%)
           .build();
 
   private final List<TradeEvent> trades = new ArrayList<>();
@@ -116,19 +132,42 @@ public class ITCoreSnapshottingExample {
 
     ExchangeApi api = ec.getApi();
 
+    // SYMBOLS
+    List<CoreSymbolSpecification> symbols = new ArrayList<>();
+    symbols.add(SYMBOL_SPEC_XBT_EUR);
+    symbols.add(SYMBOL_SPEC_LTC_XBT);
+
     Future<CommandResultCode> future =
-        api.submitBinaryDataAsync(new BatchAddSymbolsCommand(SYMBOL_SPEC_XBT_LTC));
+        api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbols));
     System.out.println("BatchAddSymbolsCommand result: " + future.get());
 
-    // create user uid=301
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).build());
-    System.out.println("ApiAddUser 1 result: " + future.get());
+    Future<SymbolsReportResult> symbolsReport0 =
+        api.processReport(new SymbolsReportQuery(), 0);
+    System.out.println(symbolsReport0.get());
 
-    // create user uid=302
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).build());
-    System.out.println("ApiAddUser 2 result: " + future.get());
+    // ACCOUNTS & BALANCES: we can use batch add users to efficiently init all users and their balance
+    LongObjectHashMap<IntLongHashMap> userAccounts = new LongObjectHashMap<>();
 
-    // first user deposits 20 LTC
+    IntLongHashMap u1Accounts = new IntLongHashMap();
+    u1Accounts.put(SYMBOL_LTC_XBT, 100000);
+    userAccounts.put(301L, u1Accounts);
+
+    IntLongHashMap u2Accounts = new IntLongHashMap();
+    u2Accounts.put(SYMBOL_LTC_XBT, 99999);
+    userAccounts.put(302L, u2Accounts);
+
+    future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts));
+    System.out.println("BatchAddAccountsCommand result: " + future.get());
+
+    Future<SingleUserReportResult> u1Report =
+        api.processReport(new SingleUserReportQuery(301L), 0);
+    System.out.println(u1Report.get());
+
+    Future<SingleUserReportResult> u2Report =
+        api.processReport(new SingleUserReportQuery(302L), 0);
+    System.out.println(u2Report.get());
+
+    // DEPOSITS: first user deposits 20 LTC
     future =
         api.submitCommandAsync(
             ApiAdjustUserBalance.builder()
@@ -161,6 +200,7 @@ public class ITCoreSnapshottingExample {
     // LTC: 1 lot = 0.0001LTC = 10_000 lits
     // price per 0.01BTC is 15_400L lits = 1.54LTC, so for 1BTC they need to pay 154LTC
 
+    // ORDERS
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
@@ -172,7 +212,7 @@ public class ITCoreSnapshottingExample {
                 .size(12L) // order size is 12 lots
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC) // Good-till-Cancel
-                .symbol(SYMBOL_XBT_LTC)
+                .symbol(SYMBOL_LTC_XBT)
                 .build());
 
     System.out.println("ApiPlaceOrder 1 result: " + future.get());
@@ -191,7 +231,7 @@ public class ITCoreSnapshottingExample {
                 .size(10L) // order size is 10 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
-                .symbol(SYMBOL_XBT_LTC)
+                .symbol(SYMBOL_LTC_XBT)
                 .build());
 
     System.out.println("ApiPlaceOrder 2 result: " + future.get());
@@ -201,7 +241,7 @@ public class ITCoreSnapshottingExample {
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture1 =
-        api.requestOrderBookAsync(SYMBOL_XBT_LTC, 10);
+        api.requestOrderBookAsync(SYMBOL_LTC_XBT, 10);
     System.out.println("ApiOrderBookRequest result: " + orderBookFuture1.get());
 
     Future<TotalCurrencyBalanceReportResult> balancesReport0 =
@@ -249,7 +289,7 @@ public class ITCoreSnapshottingExample {
                 .size(2L) // order size is 2 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
-                .symbol(SYMBOL_XBT_LTC)
+                .symbol(SYMBOL_LTC_XBT)
                 .build());
 
     System.out.println("ApiPlaceOrder 3 result: " + future.get());
@@ -262,7 +302,7 @@ public class ITCoreSnapshottingExample {
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture2 =
-        api.requestOrderBookAsync(SYMBOL_XBT_LTC, 10);
+        api.requestOrderBookAsync(SYMBOL_LTC_XBT, 10);
     System.out.println("ApiOrderBookRequest result: " + orderBookFuture2.get());
 
     Future<TotalCurrencyBalanceReportResult> balancesReport1 =
