@@ -49,18 +49,27 @@ import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 import org.junit.Test;
 
+/**
+ * This is an extended example test based on {@link ITCoreExample} This test features most api
+ * commands as well as real-world configuration scenario
+ *
+ * @author Petr Ježek
+ */
+@SuppressWarnings("SpellCheckingInspection")
 @Slf4j
 public class ITCoreSnapshottingExample {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
 
   private static final int CURRENCY_EUR = 10;
+  // XBT is equivalent for BTC
   private static final int CURRENCY_XBT = 11;
   private static final int CURRENCY_LTC = 15;
 
   private static final int SYMBOL_XBT_EUR = 240;
   private static final int SYMBOL_LTC_XBT = 241;
 
+  // symbol specification for the pair XBT/EUR
   private static final CoreSymbolSpecification SYMBOL_SPEC_XBT_EUR =
       CoreSymbolSpecification.builder()
           .symbolId(SYMBOL_XBT_EUR) // symbol id
@@ -73,6 +82,7 @@ public class ITCoreSnapshottingExample {
           .makerFee(3L) // maker fee 3 cents per 1 lot
           .build();
 
+  // symbol specification for the pair LTC/XBT
   private static final CoreSymbolSpecification SYMBOL_SPEC_LTC_XBT =
       CoreSymbolSpecification.builder()
           .symbolId(SYMBOL_LTC_XBT) // symbol id
@@ -85,198 +95,206 @@ public class ITCoreSnapshottingExample {
           .makerFee(300L) // maker fee 300 satoshi per 1 lot (0.03%)
           .build();
 
-  private final List<TradeEvent> trades = new ArrayList<>();
-
+  // initialize custom query for retreiving symbols (currency pairs from the core)
   public static Map<Integer, Class<? extends ReportQuery<?>>> createCustomReports() {
     final Map<Integer, Class<? extends ReportQuery<?>>> queries = new HashMap<>();
     queries.put(ReportType.SYMBOLS.getCode(), SymbolsReportQuery.class);
     return queries;
   }
 
+  // configuration for a clean start of the exchange core, initial state is empty
+  // everything needs to be initialized by the test
   public static ExchangeConfigurationBuilder testExchangeConfCleanBuilder() {
     return ExchangeConfiguration.builder()
         .ordersProcessingCfg(OrdersProcessingConfiguration.DEFAULT)
         .initStateCfg(InitialStateConfiguration.cleanStart(EXCHANGE_ID))
         .performanceCfg(PerformanceConfiguration.DEFAULT) // balanced perf. config
-        .reportsQueriesCfg(ReportsQueriesConfiguration.createStandardConfig(
-            ITCoreSnapshottingExample.createCustomReports()
-        )) // no idea how to use reports, should be possible to write custom reports
-        // but how?
+        .reportsQueriesCfg(
+            ReportsQueriesConfiguration.createStandardConfig(
+                ITCoreSnapshottingExample.createCustomReports() // create report  configuration
+                // with the use of a custom reports
+                ))
         .loggingCfg(
             LoggingConfiguration.builder()
                 .loggingLevels(EnumSet.of(LoggingLevel.LOGGING_WARNINGS))
                 .build())
         .serializationCfg(
             SerializationConfiguration
-                .DISK_SNAPSHOT_ONLY_REPLACE); // default disk journaling to the `dumps` folder,
-    // replace files for convenience
+                .DISK_SNAPSHOT_ONLY_REPLACE); // default disk journaling to the `dumps` folder
+    // this configuration automatically replaces files if they already exist
   }
 
+  // configuration for start from an existing snapshot, snapshot with given ID needs to be saved
+  // in the /dumps folder, otherwise this will fail
+  // snapshot ID needs to be generated and persisted outside the core
   public ExchangeConfigurationBuilder testExchangeConfFromSnapshot(long snapshotId, long baseSeq) {
     return testExchangeConfCleanBuilder()
         .initStateCfg(InitialStateConfiguration.fromSnapshotOnly(EXCHANGE_ID, snapshotId, baseSeq));
   }
 
+  /**
+   * This test uses most ExchangeAPI's commands Its purpose is to showcase the exchange-core's
+   * functionality
+   *
+   * <p>The test initilizes the core from an empty state and creates a snapshot The core is then
+   * shut down and loaded again from the snapshot
+   *
+   * <p>If everything works correctly, the test should succeed comparing the totals report from
+   * before and after the core restart, indicating that all data has been saved and loaded correctly
+   *
+   * @throws ExecutionException
+   * @throws InterruptedException
+   */
   @Test
   public void testCleanStartInitShutdownThenStartFromSnapshot_balanceReportsShouldEqual()
       throws ExecutionException, InterruptedException {
-    /* ========= 1ST RUN ========= */
-    System.out.println("Starting clean");
+
+    // we store trade history in a list to simulate a DB
+    List<TradeEvent> tradeHistory = new ArrayList<>();
+
+    /* ========= CLEAN START ========= */
+    log.info("Starting clean");
+
     ExchangeConfiguration conf = testExchangeConfCleanBuilder().build();
     ExchangeCore ec =
         ExchangeCore.builder()
-            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(trades)))
+            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(tradeHistory)))
             .exchangeConfiguration(conf)
             .build();
     ec.startup();
 
     ExchangeApi api = ec.getApi();
 
-    // SYMBOLS
+    // SYMBOLS - we pass symbol (currency pair) specifications to the core in a batch
     List<CoreSymbolSpecification> symbols = new ArrayList<>();
     symbols.add(SYMBOL_SPEC_XBT_EUR);
     symbols.add(SYMBOL_SPEC_LTC_XBT);
 
     Future<CommandResultCode> future =
         api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbols));
-    System.out.println("BatchAddSymbolsCommand result: " + future.get());
+    log.info("BatchAddSymbolsCommand result: " + future.get());
 
-    Future<SymbolsReportResult> symbolsReport0 =
-        api.processReport(new SymbolsReportQuery(), 0);
-    System.out.println(symbolsReport0.get());
+    // we can verify that symbols got added succesfully
+    Future<SymbolsReportResult> symbolsReport0 = api.processReport(new SymbolsReportQuery(), 0);
+    log.info(symbolsReport0.get().toString());
 
-    // ACCOUNTS & BALANCES: we can use batch add users to efficiently init all users and their balance
+    // ACCOUNTS & BALANCES
+    // we can use batch add users to efficiently init all users and their balance
     LongObjectHashMap<IntLongHashMap> userAccounts = new LongObjectHashMap<>();
 
     IntLongHashMap u1Accounts = new IntLongHashMap();
-    u1Accounts.put(SYMBOL_LTC_XBT, 100000);
+    u1Accounts.put(CURRENCY_EUR, 0);
+    u1Accounts.put(CURRENCY_XBT, 0);
+    u1Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(301L, u1Accounts);
 
     IntLongHashMap u2Accounts = new IntLongHashMap();
-    u2Accounts.put(SYMBOL_LTC_XBT, 99999);
+    u2Accounts.put(CURRENCY_EUR, 0);
+    u2Accounts.put(CURRENCY_XBT, 0);
+    u2Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(302L, u2Accounts);
 
     future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts));
-    System.out.println("BatchAddAccountsCommand result: " + future.get());
+    log.info("BatchAddAccountsCommand result: " + future.get());
 
-    Future<SingleUserReportResult> u1Report =
-        api.processReport(new SingleUserReportQuery(301L), 0);
-    System.out.println(u1Report.get());
-
-    Future<SingleUserReportResult> u2Report =
-        api.processReport(new SingleUserReportQuery(302L), 0);
-    System.out.println(u2Report.get());
-
-    // DEPOSITS: first user deposits 20 LTC
+    // DEPOSITS
+    // first user deposits 20 LTC
     future =
         api.submitCommandAsync(
             ApiAdjustUserBalance.builder()
                 .uid(301L)
-                .currency(CURRENCY_LTC)
-                .amount(2_000_000_000L)
-                .transactionId(1L)
+                .currency(CURRENCY_XBT)
+                .amount(10_000_000L)
+                .transactionId(2001L) // transaction id has to be > 1002 because batchAddUsers balance adjustment sets last transaction id to 1000, needs to be replaced with a sequence generated value
                 .build());
 
-    System.out.println("ApiAdjustUserBalance 1 result: " + future.get());
+    log.info("ApiAdjustUserBalance 1 result: " + future.get());
 
     // second user deposits 0.10 BTC
     future =
         api.submitCommandAsync(
             ApiAdjustUserBalance.builder()
                 .uid(302L)
-                .currency(CURRENCY_XBT)
-                .amount(10_000_000L)
-                .transactionId(2L)
+                .currency(CURRENCY_LTC)
+                .amount(2_000_000_000L)
+                .transactionId(2002L)
                 .build());
 
-    System.out.println("ApiAdjustUserBalance 2 result: " + future.get());
+    log.info("ApiAdjustUserBalance 2 result: " + future.get());
 
-    // first user places Good-till-Cancel Bid order
-    // he assumes BTCLTC exchange rate 154 LTC for 1 BTC
-    // bid price for 1 lot (0.01BTC) is 1.54 LTC => 1_5400_0000 litoshi => 10K * 15_400 (in price
-    // steps)
+    // we can check that users got added successfully and balances adjusted
+    Future<SingleUserReportResult> u1Report = api.processReport(new SingleUserReportQuery(301L), 0);
+    log.info(u1Report.get().toString());
 
-    // BTC: 1 lot = 0.01BTC = 1_000_000 sats
-    // LTC: 1 lot = 0.0001LTC = 10_000 lits
-    // price per 0.01BTC is 15_400L lits = 1.54LTC, so for 1BTC they need to pay 154LTC
+    Future<SingleUserReportResult> u2Report = api.processReport(new SingleUserReportQuery(302L), 0);
+    log.info(u2Report.get().toString());
 
     // ORDERS
+    // user creates a buy order for 12 lots of LTC at a price of 64 satoshi per 1 lot of LTC
+    // TODO: NSF error, why? Price should be in BTC, as LTC is base currency
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(301L)
                 .orderId(5001L)
-                .price(15_400L)
+                .price(64L) // pay 64 satoshi per 10_000 litoshi (ratio ~ 1BTC : 156.3LTC)
                 .reservePrice(
-                    15_600L) // can move bid order up to the 1.56 LTC, without replacing it
-                .size(12L) // order size is 12 lots
+                    70L) // can move bid order up to the 1.56 LTC, without replacing it
+                .size(12L) // order size is 12 lots (12 * 0.0001 LTC = 0.0012 LTC total)
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC) // Good-till-Cancel
                 .symbol(SYMBOL_LTC_XBT)
                 .build());
 
-    System.out.println("ApiPlaceOrder 1 result: " + future.get());
-
-    Future<SingleUserReportResult> report0 = api.processReport(new SingleUserReportQuery(301), 0);
-    System.out.println(report0.get());
+    log.info("ApiPlaceOrder 1 result: " + future.get());
 
     // second user places Immediate-or-Cancel Ask (Sell) order
-    // he assumes wost rate to sell 152.5 LTC for 1 BTC
+    // he assumes wost rate to sell ~ 161.3 LTC for 1 BTC
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5002L)
-                .price(15_250L)
+                .price(62L) // sell at 62 satoshi per 10_000 litoshi
                 .size(10L) // order size is 10 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
                 .symbol(SYMBOL_LTC_XBT)
                 .build());
 
-    System.out.println("ApiPlaceOrder 2 result: " + future.get());
-
-    Future<SingleUserReportResult> report1 = api.processReport(new SingleUserReportQuery(302), 0);
-    System.out.println(report1.get());
+    log.info("ApiPlaceOrder 2 result: " + future.get());
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture1 =
         api.requestOrderBookAsync(SYMBOL_LTC_XBT, 10);
-    System.out.println("ApiOrderBookRequest result: " + orderBookFuture1.get());
+    log.info("ApiOrderBookRequest result: " + orderBookFuture1.get());
 
+    // get totals report to see how the trade affected user balances and open orders
     Future<TotalCurrencyBalanceReportResult> balancesReport0 =
         api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
-    System.out.println(balancesReport0.get());
+    log.info(balancesReport0.get().toString());
 
+    // SNAPSHOT
+    // save snapshot with ID 123 and shutdown the core
     future = api.submitCommandAsync(ApiPersistState.builder().dumpId(123).build());
-    System.out.println("ApiPersistState result: " + future.get());
+    log.info("ApiPersistState result: " + future.get());
 
     ec.shutdown();
 
     /* ========= 2ND RUN ========= */
-    System.out.println("Starting from snapshot " + 123);
+    log.info("Starting from snapshot " + 123);
+
+    // create a new core instance, this time loaded from the snapshot 123, start from sequence 11
+    // sequence number needs to be also saved with the last saved snapshot number in DB or something
     conf = testExchangeConfFromSnapshot(123, 11).build();
     ec =
         ExchangeCore.builder()
-            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(trades)))
+            .resultsConsumer(new SimpleEventsProcessor(new TestEventHandler(tradeHistory)))
             .exchangeConfiguration(conf)
             .build();
     ec.startup();
 
     api = ec.getApi();
-
-    // do stuff
-    // second user deposits 0.10 BTC, test should fail
-    /*future =
-    api.submitCommandAsync(
-        ApiAdjustUserBalance.builder()
-            .uid(302L)
-            .currency(CURRENCY_XBT)
-            .amount(10_000_000L)
-            .transactionId(10L)
-            .build());
-
-    System.out.println("ApiAdjustUserBalance 2 result: " + future.get());*/
 
     // second user places Immediate-or-Cancel Ask (Sell) order
     // he assumes wost rate to sell 152.5 LTC for 1 BTC
@@ -285,42 +303,35 @@ public class ITCoreSnapshottingExample {
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5003L)
-                .price(15_250L)
+                .price(63L)
                 .size(2L) // order size is 2 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
                 .symbol(SYMBOL_LTC_XBT)
                 .build());
 
-    System.out.println("ApiPlaceOrder 3 result: " + future.get());
+    log.info("ApiPlaceOrder 3 result: " + future.get());
 
-    Future<SingleUserReportResult> report11 = api.processReport(new SingleUserReportQuery(301), 0);
-    System.out.println(report11.get());
-
-    Future<SingleUserReportResult> report12 = api.processReport(new SingleUserReportQuery(302), 0);
-    System.out.println(report12.get());
-
-    // request order book
+    // request order book again
     CompletableFuture<L2MarketData> orderBookFuture2 =
         api.requestOrderBookAsync(SYMBOL_LTC_XBT, 10);
-    System.out.println("ApiOrderBookRequest result: " + orderBookFuture2.get());
+    log.info("ApiOrderBookRequest result: " + orderBookFuture2.get());
 
+    // again request totals report to see user balances and orders
     Future<TotalCurrencyBalanceReportResult> balancesReport1 =
         api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
-    System.out.println(balancesReport1.get());
+    log.info(balancesReport1.get().toString());
 
-    Future<SymbolsReportResult> symbolsReport =
-        api.processReport(new SymbolsReportQuery(), 0);
-    System.out.println(symbolsReport.get());
-
-    // core SHUTDOWN, nothing will happend in the core after this point
+    // core SHUTDOWN, nothing will happen in the core after this point
     ec.shutdown();
 
-    System.out.println(trades.size());
-    for (TradeEvent trade : trades) {
-      System.out.println(trade);
+    // print trade history that was recorded from the trade events
+    log.info(String.format("Number of trades executed: {}", tradeHistory.size()));
+    for (TradeEvent trade : tradeHistory) {
+      log.info(trade.toString());
     }
 
+    // compare balances report before and after the snapshot
     assertEquals(balancesReport0.get(), balancesReport1.get());
   }
 
@@ -331,28 +342,28 @@ public class ITCoreSnapshottingExample {
 
     @Override
     public void tradeEvent(TradeEvent tradeEvent) {
-      System.out.println("Trade event: " + tradeEvent);
+      log.info("Trade event: " + tradeEvent);
       tradeHistory.add(tradeEvent);
     }
 
     @Override
     public void reduceEvent(ReduceEvent reduceEvent) {
-      System.out.println("Reduce event: " + reduceEvent);
+      log.info("Reduce event: " + reduceEvent);
     }
 
     @Override
     public void rejectEvent(RejectEvent rejectEvent) {
-      System.out.println("Reject event: " + rejectEvent);
+      log.info("Reject event: " + rejectEvent);
     }
 
     @Override
     public void commandResult(ApiCommandResult commandResult) {
-      System.out.println("Command result: " + commandResult);
+      log.info("Command result: " + commandResult);
     }
 
     @Override
     public void orderBook(OrderBook orderBook) {
-      System.out.println("OrderBook event: " + orderBook);
+      log.info("OrderBook event: " + orderBook);
     }
   }
 }

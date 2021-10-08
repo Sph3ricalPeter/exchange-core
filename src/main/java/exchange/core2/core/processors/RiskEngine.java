@@ -321,8 +321,9 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
             ((BatchAddAccountsCommand) message).getUsers().forEachKeyValue((uid, accounts) -> {
                 if (userProfileService.addEmptyUserProfile(uid)) {
+                    // TODO: change fundingTransactionId to something useful - eg. generate sequence for transactions
                     accounts.forEachKeyValue((cur, bal) ->
-                            adjustBalance(uid, cur, bal, 1_000_000_000 + cur, BalanceAdjustmentType.ADJUSTMENT));
+                            adjustBalance(uid, cur, bal, 1_000 + cur, BalanceAdjustmentType.ADJUSTMENT));
                 } else {
                     log.debug("User already exist: {}", uid);
                 }
