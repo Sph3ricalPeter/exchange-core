@@ -30,7 +30,7 @@ import java.util.concurrent.Future;
 @Slf4j
 public class ITCoreExample {
 
-  private static boolean CLEAN_START = false;
+  private static boolean CLEAN_START = true;
   private long loadedSnapshot = 69;
 
   @Test

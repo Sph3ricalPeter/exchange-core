@@ -417,6 +417,8 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
         final int currency = (cmd.action == OrderAction.BID) ? spec.quoteCurrency : spec.baseCurrency;
 
+
+
         // futures positions check for this currency
         long freeFuturesMargin = 0L;
         if (cfgMarginTradingEnabled) {
