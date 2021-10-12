@@ -95,10 +95,14 @@ public class ITCoreSnapshottingExample {
           .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
           .baseCurrency(CURRENCY_LTC) // base = satoshi (1E-8)
           .quoteCurrency(CURRENCY_BTC) // quote = litoshi (1E-8)
-          .baseScaleK(100_000L) // 1 price step = 10_000 litoshi (0.0001LTC)
-          .quoteScaleK(100L) // 1 lot = 1 satoshi (0.000001 BTC)
-          .takerFee(0L) // can't use base fees with scale of 1, will be solved with % fees from volume hopefully
-          .makerFee(0L) // can't use base fees with scale of 1, will be solved with % fees from volume hopefully
+          .baseScaleK(10_000L) // 1 price step = 10_000 litoshi (0.0001LTC)
+          .quoteScaleK(1L) // 1 lot = 1 satoshi (0.00000001 BTC)
+          .takerFee(
+              0L) // can't use base fees with scale of 1, will be solved with % fees from volume
+          // hopefully
+          .makerFee(
+              0L) // can't use base fees with scale of 1, will be solved with % fees from volume
+          // hopefully
           .build();
 
   // initialize custom query for retreiving symbols (currency pairs from the core)
@@ -122,12 +126,43 @@ public class ITCoreSnapshottingExample {
                 ))
         .loggingCfg(
             LoggingConfiguration.builder()
-                .loggingLevels(EnumSet.of(LoggingLevel.LOGGING_WARNINGS, LoggingLevel.LOGGING_RISK_DEBUG))
+                .loggingLevels(
+                    EnumSet.of(LoggingLevel.LOGGING_WARNINGS, LoggingLevel.LOGGING_RISK_DEBUG))
                 .build())
         .serializationCfg(
             SerializationConfiguration
                 .DISK_SNAPSHOT_ONLY_REPLACE); // default disk journaling to the `dumps` folder
     // this configuration automatically replaces files if they already exist
+  }
+
+  private static long convert(BigDecimal amount, int pair) throws Exception {
+    switch (pair) {
+      case SYMBOL_LTC_BTC:
+        BigDecimal baseScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.baseScaleK);
+        BigDecimal quoteScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.quoteScaleK);
+        BigDecimal lotsOfBTCPerBTC =
+            new BigDecimal(UNITS_PER_BTC / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
+        BigDecimal low = quoteScale.divide(lotsOfBTCPerBTC); // no rounding
+        BigDecimal high = new BigDecimal(Long.MAX_VALUE / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
+        if (isWithinRange(amount, low, high)) {
+          long ret = amount.multiply(baseScale).divide(quoteScale).toBigInteger().longValue();
+          log.info(
+              "BTC={} -> satoshi={} * (scale={} / units={})",
+              amount,
+              ret,
+              SYMBOL_SPEC_LTC_BTC.baseScaleK,
+              UNITS_PER_BTC);
+          return ret;
+        }
+        throw new Exception("amount is out of range");
+      default:
+        log.error("conversion for pair {} is not implemented", pair);
+        throw new NotImplementedException();
+    }
+  }
+
+  private static boolean isWithinRange(BigDecimal amount, BigDecimal low, BigDecimal high) {
+    return amount.compareTo(low) >= 0 && amount.compareTo(high) <= 0;
   }
 
   // configuration for start from an existing snapshot, snapshot with given ID needs to be saved
@@ -211,7 +246,10 @@ public class ITCoreSnapshottingExample {
                 .uid(301L)
                 .currency(CURRENCY_BTC)
                 .amount(5 * UNITS_PER_BTC) // in satoshi
-                .transactionId(2001L) // transaction id has to be > 1002 because batchAddUsers balance adjustment sets last transaction id to 1000, needs to be replaced with a sequence generated value
+                .transactionId(
+                    2001L) // transaction id has to be > 1002 because batchAddUsers balance
+                // adjustment sets last transaction id to 1000, needs to be replaced with
+                // a sequence generated value
                 .build());
 
     log.info("ApiAdjustUserBalance 1 result: " + future.get());
@@ -236,9 +274,11 @@ public class ITCoreSnapshottingExample {
     BigDecimal priceInput = new BigDecimal(Double.toString(1D / 154));
     BigDecimal totalInput = new BigDecimal(Double.toString(12D / 154));
 
-    long pricePerLot = convert(priceInput, SYMBOL_LTC_BTC);
-    long totalPrice = convert(totalInput, SYMBOL_LTC_BTC);
-    long sizeCalc = totalPrice / pricePerLot;
+    long pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
+    long pricePerLot = pricePerLotScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
+    long totalPriceScaled = convert(totalInput, SYMBOL_LTC_BTC);
+    long totalPrice = totalPriceScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
+    long sizeCalc = totalPriceScaled / pricePerLotScaled;
     log.info("totalPrice {}, pricePerLot {}, sizeCalc {}", totalPrice, pricePerLot, sizeCalc);
 
     future =
@@ -246,9 +286,17 @@ public class ITCoreSnapshottingExample {
             ApiPlaceOrder.builder()
                 .uid(301L)
                 .orderId(5001L)
-                .price(pricePerLot) // assume 154LTC per 1BTC, so 1LTC costs 1/154BTC, that's 100_000_000/154 satoshi = 649_350 satoshi ~ price=649_350 * quoteScale=1 satoshi per 1 LTC, that's 650_000 / 10_000 = 65 per 1 lot of LTC
-                .reservePrice(pricePerLot) // can move bid order up to price of 70 lots of BTC without order cancel (700_000 satoshi) ~ 142,8 LTC per 1BTC
-                .size(sizeCalc) // order size is 12 lots (so im buying size=12 * baseScale=1_000_000 litoshi = 12_000_000 litoshi, im paying size=12 * (reservePrice=70 * quoteScale=10_000 + makerFee))
+                .price(pricePerLotScaled) // assume 154LTC per 1BTC, so 1LTC costs 1/154BTC, that's
+                // 100_000_000/154 satoshi = 649_350 satoshi ~ price=649_350 *
+                // quoteScale=1 satoshi per 1 LTC, that's 650_000 / 10_000 = 65 per
+                // 1 lot of LTC
+                .reservePrice(
+                    pricePerLotScaled) // can move bid order up to price of 70 lots of BTC without
+                                       // order
+                // cancel (700_000 satoshi) ~ 142,8 LTC per 1BTC
+                .size(sizeCalc) // order size is 12 lots (so im buying size=12 * baseScale=1_000_000
+                // litoshi = 12_000_000 litoshi, im paying size=12 * (reservePrice=70
+                // * quoteScale=10_000 + makerFee))
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC) // Good-till-Cancel
                 .symbol(SYMBOL_LTC_BTC)
@@ -262,9 +310,11 @@ public class ITCoreSnapshottingExample {
     priceInput = new BigDecimal(Double.toString(1D / 161.2D));
     totalInput = new BigDecimal(Double.toString(10D / 161.2D));
 
-    pricePerLot = convert(priceInput, SYMBOL_LTC_BTC);
-    totalPrice = convert(totalInput, SYMBOL_LTC_BTC);
-    sizeCalc = totalPrice / pricePerLot;
+    pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
+    pricePerLot = pricePerLotScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
+    totalPriceScaled = convert(totalInput, SYMBOL_LTC_BTC);
+    totalPrice = totalPriceScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
+    sizeCalc = totalPriceScaled / pricePerLotScaled;
     log.info("totalPrice {}, pricePerLot {}, sizeCalc {}", totalPrice, pricePerLot, sizeCalc);
 
     future =
@@ -272,7 +322,10 @@ public class ITCoreSnapshottingExample {
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5002L)
-                .price(pricePerLot) // sell at price 1LTC for price=62 * quoteScale=10_000 = 620_000 satoshi ~ 161,2LTC per 1BTC
+                .price(
+                    pricePerLotScaled) // sell at price 1LTC for price=62 * quoteScale=10_000 =
+                                       // 620_000
+                // satoshi ~ 161,2LTC per 1BTC
                 .size(sizeCalc) // order size is 10 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
@@ -320,10 +373,12 @@ public class ITCoreSnapshottingExample {
     api = ec.getApi();
 
     // check user reports after snapshot load
-    Future<SingleUserReportResult> u1Report2 = api.processReport(new SingleUserReportQuery(301L), 0);
+    Future<SingleUserReportResult> u1Report2 =
+        api.processReport(new SingleUserReportQuery(301L), 0);
     log.info(u1Report2.get().toString());
 
-    Future<SingleUserReportResult> u2Report2 = api.processReport(new SingleUserReportQuery(302L), 0);
+    Future<SingleUserReportResult> u2Report2 =
+        api.processReport(new SingleUserReportQuery(302L), 0);
     log.info(u2Report2.get().toString());
 
     // again request totals report to see user balances and orders
@@ -338,17 +393,21 @@ public class ITCoreSnapshottingExample {
     priceInput = new BigDecimal(Double.toString(1D / 158.7D));
     totalInput = null;
 
-    pricePerLot = convert(priceInput, SYMBOL_LTC_BTC);
-    totalPrice = convert(sizeInput.multiply(priceInput), SYMBOL_LTC_BTC);
+    pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
+    totalPriceScaled = convert(sizeInput.multiply(priceInput), SYMBOL_LTC_BTC);
     sizeCalc = sizeInput.toBigInteger().longValue();
-    log.info("totalPrice {}, pricePerLot {}, sizeCalc {}", totalPrice, pricePerLot, sizeCalc);
+    log.info(
+        "totalPrice {}, pricePerLot {}, sizeCalc {}",
+        totalPriceScaled,
+        pricePerLotScaled,
+        sizeCalc);
 
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5003L)
-                .price(pricePerLot)
+                .price(pricePerLotScaled)
                 .size(sizeCalc)
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
@@ -363,10 +422,12 @@ public class ITCoreSnapshottingExample {
     log.info("ApiOrderBookRequest result: " + orderBookFuture2.get());
 
     // check user reports again
-    Future<SingleUserReportResult> u1Report3 = api.processReport(new SingleUserReportQuery(301L), 0);
+    Future<SingleUserReportResult> u1Report3 =
+        api.processReport(new SingleUserReportQuery(301L), 0);
     log.info(u1Report3.get().toString());
 
-    Future<SingleUserReportResult> u2Report3 = api.processReport(new SingleUserReportQuery(302L), 0);
+    Future<SingleUserReportResult> u2Report3 =
+        api.processReport(new SingleUserReportQuery(302L), 0);
     log.info(u2Report3.get().toString());
 
     // again request totals report to see user balances and orders
@@ -399,32 +460,6 @@ public class ITCoreSnapshottingExample {
   public void testConversion_amountBelowRange_shouldThrowException() throws Exception {
     BigDecimal amount = new BigDecimal(0.00009);
     assertThrows(Exception.class, () -> convert(amount, SYMBOL_LTC_BTC));
-  }
-
-  private static long convert(BigDecimal amount, int pair) throws Exception {
-    switch (pair) {
-      case SYMBOL_LTC_BTC: // we will get values in steps of 0.0001 BTC = 10_000 satoshi (defined in the symbol specification)
-        BigDecimal baseScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.baseScaleK); // 1
-        BigDecimal quoteScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.quoteScaleK); // 1
-        BigDecimal lotsOfLTCPerLTC = new BigDecimal(UNITS_PER_LTC / SYMBOL_SPEC_LTC_BTC.baseScaleK);
-        BigDecimal lotsOfBTCPerBTC = new BigDecimal(UNITS_PER_BTC / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
-        BigDecimal low = quoteScale.divide(lotsOfBTCPerBTC); // no rounding
-        BigDecimal high = new BigDecimal(Long.MAX_VALUE / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
-        log.info("conversion for pair {}: [low {}, high {}, amount {}, lotsOfLTCPerLTC {}, quoteScale {}]", pair, low, high, amount, lotsOfLTCPerLTC, quoteScale);
-        if (isWithinRange(amount, low, high)) {
-          long ret = amount.multiply(baseScale).divide(quoteScale).toBigInteger().longValue();
-          log.info("BTC={} -> satoshi={} * (scale={} / units={})", amount, ret, SYMBOL_SPEC_LTC_BTC.baseScaleK, UNITS_PER_BTC);
-          return ret;
-        }
-        throw new Exception("amount is out of range");
-      default:
-        log.error("conversion for pair {} is not implemented", pair);
-        throw new NotImplementedException();
-    }
-  }
-
-  private static boolean isWithinRange(BigDecimal amount, BigDecimal low, BigDecimal high) {
-    return amount.compareTo(low) >= 0 && amount.compareTo(high) <= 0;
   }
 
   @AllArgsConstructor
