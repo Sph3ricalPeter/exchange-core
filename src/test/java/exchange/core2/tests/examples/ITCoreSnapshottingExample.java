@@ -156,8 +156,7 @@ public class ITCoreSnapshottingExample {
         }
         throw new Exception("amount is out of range");
       default:
-        log.error("conversion for pair {} is not implemented", pair);
-        throw new NotImplementedException();
+        throw new NotImplementedException(String.format("conversion for pair %d is not implemented", pair));
     }
   }
 
