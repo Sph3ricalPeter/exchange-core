@@ -481,6 +481,7 @@ public final class ExchangeApi {
         cmd.uid = api.uid;
         cmd.timestamp = api.timestamp;
         cmd.resultCode = CommandResultCode.NEW;
+        cmd.feeZone = api.feeZone;
     };
 
     private static final EventTranslatorOneArg<OrderCommand, ApiSuspendUser> SUSPEND_USER_TRANSLATOR = (cmd, seq, api) -> {

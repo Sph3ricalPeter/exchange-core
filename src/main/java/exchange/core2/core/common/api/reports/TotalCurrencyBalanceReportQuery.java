@@ -18,6 +18,7 @@ package exchange.core2.core.common.api.reports;
 import exchange.core2.core.common.CoreSymbolSpecification;
 import exchange.core2.core.common.PositionDirection;
 import exchange.core2.core.common.SymbolType;
+import exchange.core2.core.common.UserProfile;
 import exchange.core2.core.processors.MatchingEngineRouter;
 import exchange.core2.core.processors.RiskEngine;
 import exchange.core2.core.processors.SymbolSpecificationProvider;
@@ -68,7 +69,7 @@ public final class TotalCurrencyBalanceReportQuery implements ReportQuery<TotalC
 
                     currencyBalance.addToValue(
                             spec.getQuoteCurrency(),
-                            ob.bidOrdersStream(false).mapToLong(ord -> CoreArithmeticUtils.calculateAmountBidTakerFee(ord.getSize() - ord.getFilled(), ord.getReserveBidPrice(), spec)).sum());
+                            ob.bidOrdersStream(false).mapToLong(ord -> CoreArithmeticUtils.calculateAmountBidTakerFee(ord.getSize() - ord.getFilled(), ord.getReserveBidPrice(), spec, ord.getFeeZone())).sum());
                 });
 
         return Optional.of(TotalCurrencyBalanceReportResult.ofOrderBalances(currencyBalance));

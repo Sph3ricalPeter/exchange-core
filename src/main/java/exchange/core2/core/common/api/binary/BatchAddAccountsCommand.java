@@ -15,6 +15,7 @@
  */
 package exchange.core2.core.common.api.binary;
 
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.utils.SerializationUtils;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -29,19 +30,25 @@ import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 @Getter
 public final class BatchAddAccountsCommand implements BinaryDataCommand {
 
-    private final LongObjectHashMap<IntLongHashMap> users;
+  private final LongObjectHashMap<IntLongHashMap> users;
+  private final FeeZone feeZone;
 
-    public BatchAddAccountsCommand(final BytesIn bytes) {
-        users = SerializationUtils.readLongHashMap(bytes, c -> SerializationUtils.readIntLongHashMap(bytes));
-    }
+  public BatchAddAccountsCommand(final BytesIn bytes) {
+    users =
+        SerializationUtils.readLongHashMap(
+            bytes, c -> SerializationUtils.readIntLongHashMap(bytes));
+    feeZone = new FeeZone(bytes);
+  }
 
-    @Override
-    public void writeMarshallable(BytesOut bytes) {
-        SerializationUtils.marshallLongHashMap(users, SerializationUtils::marshallIntLongHashMap, bytes);
-    }
+  @Override
+  public void writeMarshallable(BytesOut bytes) {
+    SerializationUtils.marshallLongHashMap(
+        users, SerializationUtils::marshallIntLongHashMap, bytes);
+    feeZone.writeMarshallable(bytes);
+  }
 
-    @Override
-    public int getBinaryCommandTypeCode() {
-        return BinaryCommandType.ADD_ACCOUNTS.getCode();
-    }
+  @Override
+  public int getBinaryCommandTypeCode() {
+    return BinaryCommandType.ADD_ACCOUNTS.getCode();
+  }
 }

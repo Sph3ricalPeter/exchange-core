@@ -139,8 +139,8 @@ public final class TestConstants {
             .quoteScaleK(1)
             .marginBuy(2200)
             .marginSell(3210)
-            .takerFee(0)
-            .makerFee(0)
+            .takerBaseFee(0)
+            .makerBaseFee(0)
             .build();
 
     public static final CoreSymbolSpecification SYMBOLSPECFEE_USD_JPY = CoreSymbolSpecification.builder()
@@ -152,8 +152,8 @@ public final class TestConstants {
             .quoteScaleK(10) // 10 JPY step
             .marginBuy(5_000) // effective leverage ~21
             .marginSell(6_000) // effective leverage ~18
-            .takerFee(3)
-            .makerFee(2)
+            .takerBaseFee(3)
+            .makerBaseFee(2)
             .build();
 
 
@@ -164,8 +164,8 @@ public final class TestConstants {
             .quoteCurrency(CURRENECY_XBT)   // quote = satoshi
             .baseScaleK(100_000)            // 1 lot = 100K szabo (0.1 ETH)
             .quoteScaleK(10)                // 1 step = 10 satoshi
-            .takerFee(0)
-            .makerFee(0)
+            .takerBaseFee(0)
+            .makerBaseFee(0)
             .build();
 
     // symbol with fees
@@ -176,8 +176,8 @@ public final class TestConstants {
             .quoteCurrency(CURRENECY_LTC)   // quote = litoshi
             .baseScaleK(1_000_000)          // 1 lot = 1M satoshi (0.01 BTC)
             .quoteScaleK(10_000)            // 1 step = 10K litoshi
-            .takerFee(1900)                 // taker fee 1900 litoshi per 1 lot
-            .makerFee(700)                  // maker fee 700 litoshi per 1 lot
+            .takerBaseFee(1900)                 // taker fee 1900 litoshi per 1 lot
+            .makerBaseFee(700)                  // maker fee 700 litoshi per 1 lot
             .build();
 
     public static int getCurrency(String currency) {

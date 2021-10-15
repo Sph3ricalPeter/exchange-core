@@ -16,6 +16,7 @@
 package exchange.core2.core.common.api;
 
 
+import exchange.core2.core.common.FeeZone;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -26,6 +27,7 @@ import lombok.EqualsAndHashCode;
 public final class ApiAddUser extends ApiCommand {
 
     public final long uid;
+    public final FeeZone feeZone;
 
     @Override
     public String toString() {

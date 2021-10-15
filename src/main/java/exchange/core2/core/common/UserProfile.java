@@ -34,23 +34,23 @@ public final class UserProfile implements WriteBytesMarshallable, StateHash {
     // symbol -> margin position records
     // TODO initialize lazily (only needed if margin trading allowed)
     public final IntObjectHashMap<SymbolPositionRecord> positions;
-
-    // protects from double adjustment
-    public long adjustmentsCounter;
-
     // currency accounts
     // currency -> balance
     public final IntLongHashMap accounts;
-
+    // protects from double adjustment
+    public long adjustmentsCounter;
     public UserStatus userStatus;
 
-    public UserProfile(long uid, UserStatus userStatus) {
+    public FeeZone feeZone;
+
+    public UserProfile(long uid, UserStatus userStatus, FeeZone feeZone) {
         //log.debug("New {}", uid);
         this.uid = uid;
         this.positions = new IntObjectHashMap<>();
         this.adjustmentsCounter = 0L;
         this.accounts = new IntLongHashMap();
         this.userStatus = userStatus;
+        this.feeZone = feeZone;
     }
 
     public UserProfile(BytesIn bytesIn) {
@@ -68,6 +68,9 @@ public final class UserProfile implements WriteBytesMarshallable, StateHash {
 
         // suspended
         this.userStatus = UserStatus.of(bytesIn.readByte());
+
+        // fee percentages
+        this.feeZone = new FeeZone(bytesIn);
     }
 
     public SymbolPositionRecord getPositionRecordOrThrowEx(int symbol) {
@@ -94,6 +97,9 @@ public final class UserProfile implements WriteBytesMarshallable, StateHash {
 
         // suspended
         bytes.writeByte(userStatus.getCode());
+
+        // fee zone
+        feeZone.writeMarshallable(bytes);
     }
 
 
@@ -105,6 +111,7 @@ public final class UserProfile implements WriteBytesMarshallable, StateHash {
                 ", accounts=" + accounts +
                 ", adjustmentsCounter=" + adjustmentsCounter +
                 ", userStatus=" + userStatus +
+                ", feeZone=" + feeZone +
                 '}';
     }
 
@@ -115,6 +122,7 @@ public final class UserProfile implements WriteBytesMarshallable, StateHash {
                 HashingUtils.stateHash(positions),
                 adjustmentsCounter,
                 accounts.hashCode(),
-                userStatus.hashCode());
+                userStatus.hashCode(),
+            feeZone.hashCode());
     }
 }

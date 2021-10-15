@@ -74,12 +74,12 @@ public class ITCoreExample {
         ExchangeConfiguration.builder()
             .ordersProcessingCfg(OrdersProcessingConfiguration.DEFAULT)
             .initStateCfg(
-                CLEAN_START ?
-                InitialStateConfiguration.cleanStart("MY_EXCHANGE") :
-                InitialStateConfiguration.fromSnapshotOnly(
-                    "MY_EXCHANGE",
-                    loadedSnapshot,
-                    19)) // clean start with snapshot because journal doesn't seem to work
+                CLEAN_START
+                    ? InitialStateConfiguration.cleanStart("MY_EXCHANGE")
+                    : InitialStateConfiguration.fromSnapshotOnly(
+                        "MY_EXCHANGE",
+                        loadedSnapshot,
+                        19)) // clean start with snapshot because journal doesn't seem to work
             .performanceCfg(PerformanceConfiguration.DEFAULT) // balanced perf. config
             .reportsQueriesCfg(
                 ReportsQueriesConfiguration
@@ -126,20 +126,20 @@ public class ITCoreExample {
             .quoteCurrency(currencyCodeLtc) // quote = litoshi (1E-8)
             .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
             .quoteScaleK(10_000L) // 1 price step = 10K litoshi
-            .takerFee(1900L) // taker fee 1900 litoshi per 1 lot
-            .makerFee(700L) // maker fee 700 litoshi per 1 lot
+            .takerBaseFee(1900L) // taker fee 1900 litoshi per 1 lot
+            .makerBaseFee(700L) // maker fee 700 litoshi per 1 lot
             .build();
 
     future = api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbolSpecXbtLtc));
     System.out.println("BatchAddSymbolsCommand result: " + future.get());
 
     // create user uid=301
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).build());
+    future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).feeZone(FeeZone.NONE).build());
 
     System.out.println("ApiAddUser 1 result: " + future.get());
 
     // create user uid=302
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).build());
+    future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).feeZone(FeeZone.NONE).build());
 
     System.out.println("ApiAddUser 2 result: " + future.get());
 

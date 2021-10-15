@@ -16,6 +16,8 @@
 package exchange.core2.core.utils;
 
 import exchange.core2.core.common.CoreSymbolSpecification;
+import exchange.core2.core.common.FeeZone;
+import exchange.core2.core.common.UserProfile;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -29,17 +31,16 @@ public final class CoreArithmeticUtils {
         return size * (price * spec.quoteScaleK);
     }
 
-    public static long calculateAmountBidTakerFee(long size, long price, CoreSymbolSpecification spec) {
-        return size * (price * spec.quoteScaleK + spec.takerFee);
+    public static long calculateAmountBidTakerFee(long size, long price, CoreSymbolSpecification spec, FeeZone feeZone) {
+        return Math.round((1 + feeZone.takerFeeFraction) * size * (price * spec.quoteScaleK + spec.takerBaseFee));
     }
 
-    public static long calculateAmountBidReleaseCorrMaker(long size, long priceDiff, CoreSymbolSpecification spec) {
-        return size * (priceDiff * spec.quoteScaleK + (spec.takerFee - spec.makerFee));
+    public static long calculateAmountBidReleaseCorrMaker(long size, long priceDiff, CoreSymbolSpecification spec, FeeZone feeZone) {
+        return Math.round((1 + feeZone.takerFeeFraction - feeZone.makerFeeFraction) * size * (priceDiff * spec.quoteScaleK + (spec.takerBaseFee - spec.makerBaseFee)));
     }
 
-    public static long calculateAmountBidTakerFeeForBudget(long size, long budgetInSteps, CoreSymbolSpecification spec) {
-
-        return budgetInSteps * spec.quoteScaleK + size * spec.takerFee;
+    public static long calculateAmountBidTakerFeeForBudget(long size, long budgetInSteps, CoreSymbolSpecification spec, FeeZone feeZone) {
+        return Math.round((1 + feeZone.takerFeeFraction) * (budgetInSteps * spec.quoteScaleK + size * spec.takerBaseFee));
     }
 
 }

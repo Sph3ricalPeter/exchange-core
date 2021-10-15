@@ -43,8 +43,8 @@ import static org.junit.Assert.assertTrue;
 public abstract class ITFeesExchange {
 
     private final long step = SYMBOLSPECFEE_XBT_LTC.quoteScaleK;
-    private final long makerFee = SYMBOLSPECFEE_XBT_LTC.makerFee;
-    private final long takerFee = SYMBOLSPECFEE_XBT_LTC.takerFee;
+    private final long makerFee = SYMBOLSPECFEE_XBT_LTC.makerBaseFee;
+    private final long takerFee = SYMBOLSPECFEE_XBT_LTC.takerBaseFee;
 
     // configuration provided by child class
     public abstract PerformanceConfiguration getPerformanceConfiguration();

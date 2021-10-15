@@ -15,6 +15,7 @@
  */
 package exchange.core2.core.processors;
 
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.StateHash;
 import exchange.core2.core.common.UserProfile;
 import exchange.core2.core.common.UserStatus;
@@ -61,7 +62,8 @@ public final class UserProfileService implements WriteBytesMarshallable, StateHa
     }
 
     public UserProfile getUserProfileOrAddSuspended(long uid) {
-        return userProfiles.getIfAbsentPut(uid, () -> new UserProfile(uid, UserStatus.SUSPENDED));
+        return userProfiles.getIfAbsentPut(uid, () -> new UserProfile(uid, UserStatus.SUSPENDED,
+            FeeZone.NONE));
     }
 
 
@@ -112,9 +114,9 @@ public final class UserProfileService implements WriteBytesMarshallable, StateHa
      * @param uid uid
      * @return true if user was added
      */
-    public boolean addEmptyUserProfile(long uid) {
+    public boolean addEmptyUserProfile(long uid, FeeZone feeZone) {
         if (userProfiles.get(uid) == null) {
-            userProfiles.put(uid, new UserProfile(uid, UserStatus.ACTIVE));
+            userProfiles.put(uid, new UserProfile(uid, UserStatus.ACTIVE, feeZone));
             return true;
         } else {
             log.debug("Can not add user, already exists: {}", uid);
@@ -158,10 +160,7 @@ public final class UserProfileService implements WriteBytesMarshallable, StateHa
     public CommandResultCode resumeUserProfile(long uid) {
         final UserProfile userProfile = userProfiles.get(uid);
         if (userProfile == null) {
-            // create new empty user profile
-            // account balance adjustments should be applied later
-            userProfiles.put(uid, new UserProfile(uid, UserStatus.ACTIVE));
-            return CommandResultCode.SUCCESS;
+            return CommandResultCode.USER_MGMT_USER_NOT_FOUND;
         } else if (userProfile.userStatus != UserStatus.SUSPENDED) {
             // attempt to resume non-suspended account (or resume twice)
             return CommandResultCode.USER_MGMT_USER_NOT_SUSPENDED;

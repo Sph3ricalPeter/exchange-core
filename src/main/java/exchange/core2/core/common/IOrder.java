@@ -33,4 +33,5 @@ public interface IOrder extends StateHash {
 
     long getReserveBidPrice();
 
+    FeeZone getFeeZone();
 }

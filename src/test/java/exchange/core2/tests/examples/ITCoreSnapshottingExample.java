@@ -9,6 +9,7 @@ import exchange.core2.core.IEventsHandler;
 import exchange.core2.core.IEventsHandler.TradeEvent;
 import exchange.core2.core.SimpleEventsProcessor;
 import exchange.core2.core.common.CoreSymbolSpecification;
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.OrderAction;
 import exchange.core2.core.common.OrderType;
@@ -64,6 +65,8 @@ public class ITCoreSnapshottingExample {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
 
+  private static final FeeZone FEE_ZONE_SUB_10K_VOLUME = FeeZone.fromPercent(0.35F, 0.3F);
+
   private static final long UNITS_PER_BTC = 100_000_000L;
   private static final long UNITS_PER_LTC = 100_000_000L;
 
@@ -83,8 +86,8 @@ public class ITCoreSnapshottingExample {
           .quoteCurrency(CURRENCY_EUR) // quote = cents (1E-2)
           .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
           .quoteScaleK(100L) // 1 price step = 100 cents (1 EUR), can buy BTC with 1 EUR steps
-          .takerFee(1L) // taker fee 1 cent per 1 lot
-          .makerFee(3L) // maker fee 3 cents per 1 lot
+          .takerBaseFee(1L) // taker fee 1 cent per 1 lot
+          .makerBaseFee(3L) // maker fee 3 cents per 1 lot
           .build();
 
   // symbol specification for the pair LTC/XBT
@@ -97,10 +100,10 @@ public class ITCoreSnapshottingExample {
           .quoteCurrency(CURRENCY_BTC) // quote = litoshi (1E-8)
           .baseScaleK(10_000L) // 1 price step = 10_000 litoshi (0.0001LTC)
           .quoteScaleK(1L) // 1 lot = 1 satoshi (0.00000001 BTC)
-          .takerFee(
+          .takerBaseFee(
               0L) // can't use base fees with scale of 1, will be solved with % fees from volume
           // hopefully
-          .makerFee(
+          .makerBaseFee(
               0L) // can't use base fees with scale of 1, will be solved with % fees from volume
           // hopefully
           .build();
@@ -156,7 +159,8 @@ public class ITCoreSnapshottingExample {
         }
         throw new Exception("amount is out of range");
       default:
-        throw new NotImplementedException(String.format("conversion for pair %d is not implemented", pair));
+        throw new NotImplementedException(
+            String.format("conversion for pair %d is not implemented", pair));
     }
   }
 
@@ -234,7 +238,9 @@ public class ITCoreSnapshottingExample {
     u2Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(302L, u2Accounts);
 
-    future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts));
+    future =
+        api.submitBinaryDataAsync(
+            new BatchAddAccountsCommand(userAccounts, FEE_ZONE_SUB_10K_VOLUME));
     log.info("BatchAddAccountsCommand result: " + future.get());
 
     // DEPOSITS
@@ -291,7 +297,7 @@ public class ITCoreSnapshottingExample {
                 // 1 lot of LTC
                 .reservePrice(
                     pricePerLotScaled) // can move bid order up to price of 70 lots of BTC without
-                                       // order
+                // order
                 // cancel (700_000 satoshi) ~ 142,8 LTC per 1BTC
                 .size(sizeCalc) // order size is 12 lots (so im buying size=12 * baseScale=1_000_000
                 // litoshi = 12_000_000 litoshi, im paying size=12 * (reservePrice=70
@@ -321,9 +327,8 @@ public class ITCoreSnapshottingExample {
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5002L)
-                .price(
-                    pricePerLotScaled) // sell at price 1LTC for price=62 * quoteScale=10_000 =
-                                       // 620_000
+                .price(pricePerLotScaled) // sell at price 1LTC for price=62 * quoteScale=10_000 =
+                // 620_000
                 // satoshi ~ 161,2LTC per 1BTC
                 .size(sizeCalc) // order size is 10 lots
                 .action(OrderAction.ASK)
@@ -445,20 +450,6 @@ public class ITCoreSnapshottingExample {
 
     // compare balances report before and after the snapshot
     assertEquals(balancesReportBeforeSnapshot.get(), balancesReportAfterSnapshotLoad.get());
-  }
-
-  @Test
-  public void testConversion_amountWithinRange_shouldConvertCorrectly() throws Exception {
-    BigDecimal amount = new BigDecimal(0.0001);
-    long expected = 10_000L;
-    long actual = convert(amount, SYMBOL_LTC_BTC);
-    assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testConversion_amountBelowRange_shouldThrowException() throws Exception {
-    BigDecimal amount = new BigDecimal(0.00009);
-    assertThrows(Exception.class, () -> convert(amount, SYMBOL_LTC_BTC));
   }
 
   @AllArgsConstructor

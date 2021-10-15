@@ -362,8 +362,8 @@ public final class ExchangeTestContainer implements AutoCloseable {
                         .quoteCurrency(quoteCurrency)
                         .baseScaleK(100)
                         .quoteScaleK(10)
-                        .takerFee(takerFee)
-                        .makerFee(makerFee)
+                        .takerBaseFee(takerFee)
+                        .makerBaseFee(makerFee)
                         .build();
 
                 result.add(symbol);

@@ -9,6 +9,7 @@ import exchange.core2.core.IEventsHandler;
 import exchange.core2.core.IEventsHandler.TradeEvent;
 import exchange.core2.core.SimpleEventsProcessor;
 import exchange.core2.core.common.CoreSymbolSpecification;
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.OrderAction;
 import exchange.core2.core.common.OrderType;
@@ -64,6 +65,8 @@ public class ITCoreConversions {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
 
+  private static final FeeZone FEE_ZONE_SUB_10K_VOLUME = FeeZone.fromPercent(0.35F, 0.3F);
+
   private static final long UNITS_PER_BTC = 100_000_000L;
   private static final long UNITS_PER_LTC = 100_000_000L;
 
@@ -84,8 +87,8 @@ public class ITCoreConversions {
           .quoteCurrency(CURRENCY_EUR) // quote = cents (1E-2)
           .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
           .quoteScaleK(100L) // 1 price step = 100 cents (1 EUR), can buy BTC with 1 EUR steps
-          .takerFee(1L) // taker fee 1 cent per 1 lot
-          .makerFee(3L) // maker fee 3 cents per 1 lot
+          .takerBaseFee(1L) // taker fee 1 cent per 1 lot
+          .makerBaseFee(3L) // maker fee 3 cents per 1 lot
           .build();
 
   // symbol specification for the pair LTC/XBT
@@ -98,10 +101,10 @@ public class ITCoreConversions {
           .quoteCurrency(CURRENCY_BTC) // quote = litoshi (1E-8)
           .baseScaleK(10_000L) // 1 price step = 10_000 litoshi (0.0001LTC)
           .quoteScaleK(100L) // 1 lot = 1 satoshi (0.000001 BTC)
-          .takerFee(
+          .takerBaseFee(
               0L) // can't use base fees with scale of 1, will be solved with % fees from volume
           // hopefully
-          .makerFee(
+          .makerBaseFee(
               0L) // can't use base fees with scale of 1, will be solved with % fees from volume
           // hopefully
           .build();
@@ -235,7 +238,7 @@ public class ITCoreConversions {
     u2Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(302L, u2Accounts);
 
-    future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts));
+    future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts, FEE_ZONE_SUB_10K_VOLUME));
     log.info("BatchAddAccountsCommand result: " + future.get());
 
     // DEPOSITS

@@ -41,8 +41,8 @@ public final class CoreSymbolSpecification implements WriteBytesMarshallable, St
     public final long quoteScaleK;  // quote currency amount multiplier (step size in quote currency units)
 
     // fees per lot in quote? currency units
-    public final long takerFee; // TODO check invariant: taker fee is not less than maker fee
-    public final long makerFee;
+    public final long takerBaseFee; // TODO check invariant: taker fee is not less than maker fee
+    public final long makerBaseFee;
 
     // margin settings (for type=FUTURES_CONTRACT only)
     public final long marginBuy;   // buy margin (quote currency)
@@ -55,8 +55,8 @@ public final class CoreSymbolSpecification implements WriteBytesMarshallable, St
         this.quoteCurrency = bytes.readInt();
         this.baseScaleK = bytes.readLong();
         this.quoteScaleK = bytes.readLong();
-        this.takerFee = bytes.readLong();
-        this.makerFee = bytes.readLong();
+        this.takerBaseFee = bytes.readLong();
+        this.makerBaseFee = bytes.readLong();
         this.marginBuy = bytes.readLong();
         this.marginSell = bytes.readLong();
     }
@@ -83,8 +83,8 @@ public final class CoreSymbolSpecification implements WriteBytesMarshallable, St
         bytes.writeInt(quoteCurrency);
         bytes.writeLong(baseScaleK);
         bytes.writeLong(quoteScaleK);
-        bytes.writeLong(takerFee);
-        bytes.writeLong(makerFee);
+        bytes.writeLong(takerBaseFee);
+        bytes.writeLong(makerBaseFee);
         bytes.writeLong(marginBuy);
         bytes.writeLong(marginSell);
     }
@@ -98,8 +98,8 @@ public final class CoreSymbolSpecification implements WriteBytesMarshallable, St
                 quoteCurrency,
                 baseScaleK,
                 quoteScaleK,
-                takerFee,
-                makerFee,
+            takerBaseFee,
+            makerBaseFee,
                 marginBuy,
                 marginSell);
     }
@@ -114,8 +114,8 @@ public final class CoreSymbolSpecification implements WriteBytesMarshallable, St
                 quoteCurrency == that.quoteCurrency &&
                 baseScaleK == that.baseScaleK &&
                 quoteScaleK == that.quoteScaleK &&
-                takerFee == that.takerFee &&
-                makerFee == that.makerFee &&
+                takerBaseFee == that.takerBaseFee &&
+                makerBaseFee == that.makerBaseFee &&
                 marginBuy == that.marginBuy &&
                 marginSell == that.marginSell &&
                 type == that.type;

@@ -172,7 +172,7 @@ public class SimpleEventsProcessor implements ObjLongConsumer<OrderCommand> {
                 break;
 
             case ADD_USER:
-                sendApiCommandResult(new ApiAddUser(cmd.uid), cmd.resultCode, cmd.timestamp, seq);
+                sendApiCommandResult(new ApiAddUser(cmd.uid, cmd.feeZone), cmd.resultCode, cmd.timestamp, seq);
                 break;
 
             case BALANCE_ADJUSTMENT:

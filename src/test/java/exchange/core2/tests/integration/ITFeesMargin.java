@@ -41,8 +41,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public abstract class ITFeesMargin {
 
-    private final long makerFee = SYMBOLSPECFEE_USD_JPY.makerFee;
-    private final long takerFee = SYMBOLSPECFEE_USD_JPY.takerFee;
+    private final long makerFee = SYMBOLSPECFEE_USD_JPY.makerBaseFee;
+    private final long takerFee = SYMBOLSPECFEE_USD_JPY.takerBaseFee;
     private final int symbolId = SYMBOLSPECFEE_USD_JPY.symbolId;
 
     // configuration provided by child class
