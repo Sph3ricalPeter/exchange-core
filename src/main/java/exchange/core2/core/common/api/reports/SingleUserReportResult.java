@@ -16,6 +16,7 @@
 package exchange.core2.core.common.api.reports;
 
 
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.Order;
 import exchange.core2.core.common.PositionDirection;
 import exchange.core2.core.common.UserStatus;
@@ -40,7 +41,7 @@ import java.util.stream.Stream;
 @Slf4j
 public final class SingleUserReportResult implements ReportResult {
 
-    public static SingleUserReportResult IDENTITY = new SingleUserReportResult(0L, null, null, null, null, QueryExecutionStatus.OK);
+    public static SingleUserReportResult IDENTITY = new SingleUserReportResult(0L, null, null, null, null, null, QueryExecutionStatus.OK);
 
     private final long uid;
 
@@ -51,6 +52,8 @@ public final class SingleUserReportResult implements ReportResult {
     private final IntLongHashMap accounts;
     private final IntObjectHashMap<Position> positions;
 
+    private final FeeZone feeZone;
+
     // matching engine: orders placed by user
     // symbol -> orders
     private final IntObjectHashMap<List<Order>> orders;
@@ -60,15 +63,15 @@ public final class SingleUserReportResult implements ReportResult {
 
 
     public static SingleUserReportResult createFromMatchingEngine(long uid, IntObjectHashMap<List<Order>> orders) {
-        return new SingleUserReportResult(uid, null, null, null, orders, QueryExecutionStatus.OK);
+        return new SingleUserReportResult(uid, null, null, null, null, orders, QueryExecutionStatus.OK);
     }
 
-    public static SingleUserReportResult createFromRiskEngineFound(long uid, UserStatus userStatus, IntLongHashMap accounts, IntObjectHashMap<Position> positions) {
-        return new SingleUserReportResult(uid, userStatus, accounts, positions, null, QueryExecutionStatus.OK);
+    public static SingleUserReportResult createFromRiskEngineFound(long uid, UserStatus userStatus, IntLongHashMap accounts, IntObjectHashMap<Position> positions, FeeZone feeZone) {
+        return new SingleUserReportResult(uid, userStatus, accounts, positions, feeZone, null, QueryExecutionStatus.OK);
     }
 
     public static SingleUserReportResult createFromRiskEngineNotFound(long uid) {
-        return new SingleUserReportResult(uid, null, null, null, null, QueryExecutionStatus.USER_NOT_FOUND);
+        return new SingleUserReportResult(uid, null, null, null, null, null, QueryExecutionStatus.USER_NOT_FOUND);
     }
 
     public Map<Long, Order> fetchIndexedOrders() {
@@ -83,6 +86,7 @@ public final class SingleUserReportResult implements ReportResult {
         this.userStatus = bytesIn.readBoolean() ? UserStatus.of(bytesIn.readByte()) : null;
         this.accounts = bytesIn.readBoolean() ? SerializationUtils.readIntLongHashMap(bytesIn) : null;
         this.positions = bytesIn.readBoolean() ? SerializationUtils.readIntHashMap(bytesIn, Position::new) : null;
+        this.feeZone = bytesIn.readBoolean() ? new FeeZone(bytesIn) : null;
         this.orders = bytesIn.readBoolean() ? SerializationUtils.readIntHashMap(bytesIn, b -> SerializationUtils.readList(b, Order::new)) : null;
         this.queryExecutionStatus = QueryExecutionStatus.of(bytesIn.readInt());
     }
@@ -110,6 +114,11 @@ public final class SingleUserReportResult implements ReportResult {
         bytes.writeBoolean(positions != null);
         if (positions != null) {
             SerializationUtils.marshallIntHashMap(positions, bytes);
+        }
+
+        bytes.writeBoolean(feeZone != null);
+        if (feeZone != null) {
+            feeZone.writeMarshallable(bytes);
         }
 
         bytes.writeBoolean(orders != null);
@@ -153,6 +162,7 @@ public final class SingleUserReportResult implements ReportResult {
                                 SerializationUtils.preferNotNull(a.userStatus, b.userStatus),
                                 SerializationUtils.preferNotNull(a.accounts, b.accounts),
                                 SerializationUtils.preferNotNull(a.positions, b.positions),
+                                SerializationUtils.preferNotNull(a.feeZone, b.feeZone),
                                 SerializationUtils.mergeOverride(a.orders, b.orders),
                                 a.queryExecutionStatus != QueryExecutionStatus.OK ? a.queryExecutionStatus : b.queryExecutionStatus));
     }
@@ -205,6 +215,7 @@ public final class SingleUserReportResult implements ReportResult {
                 ", accounts=" + accounts +
                 ", orders=" + orders +
                 ", queryExecutionStatus=" + queryExecutionStatus +
+                ", feeZone=" + feeZone +
                 '}';
     }
 }

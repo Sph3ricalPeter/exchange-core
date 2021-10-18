@@ -19,6 +19,7 @@ import exchange.core2.collections.objpool.ObjectsPool;
 import exchange.core2.core.common.*;
 import exchange.core2.core.common.api.binary.BatchAddAccountsCommand;
 import exchange.core2.core.common.api.binary.BatchAddSymbolsCommand;
+import exchange.core2.core.common.api.binary.BatchUpdateUserFeeZones;
 import exchange.core2.core.common.api.binary.BinaryDataCommand;
 import exchange.core2.core.common.api.reports.ReportQuery;
 import exchange.core2.core.common.api.reports.ReportResult;
@@ -295,7 +296,6 @@ public final class RiskEngine implements WriteBytesMarshallable {
   }
 
   private void handleBinaryMessage(BinaryDataCommand message) {
-
     if (message instanceof BatchAddSymbolsCommand) {
 
       final IntObjectHashMap<CoreSymbolSpecification> symbols =
@@ -325,6 +325,20 @@ public final class RiskEngine implements WriteBytesMarshallable {
                               uid, cur, bal, 1_000 + cur, BalanceAdjustmentType.ADJUSTMENT));
                 } else {
                   log.debug("User already exist: {}", uid);
+                }
+              });
+
+    } else if (message instanceof BatchUpdateUserFeeZones) {
+
+      ((BatchUpdateUserFeeZones) message)
+          .getUserFeeZones()
+          .forEachKeyValue(
+              (uid, feeZone) -> {
+                UserProfile user = userProfileService.getUserProfile(uid);
+                if (user != null) {
+                  user.feeZone = feeZone;
+                } else {
+                  log.debug("User doesnt exist: {}", uid);
                 }
               });
     }
@@ -713,11 +727,13 @@ public final class RiskEngine implements WriteBytesMarshallable {
       if (cmd.command == OrderCommandType.PLACE_ORDER && cmd.orderType == OrderType.FOK_BUDGET) {
         taker.accounts.addToValue(
             spec.quoteCurrency,
-            CoreArithmeticUtils.calculateAmountBidTakerFeeForBudget(ev.size, ev.price, spec, taker.feeZone));
+            CoreArithmeticUtils.calculateAmountBidTakerFeeForBudget(
+                ev.size, ev.price, spec, taker.feeZone));
       } else {
         taker.accounts.addToValue(
             spec.quoteCurrency,
-            CoreArithmeticUtils.calculateAmountBidTakerFee(ev.size, ev.bidderHoldPrice, spec, taker.feeZone));
+            CoreArithmeticUtils.calculateAmountBidTakerFee(
+                ev.size, ev.bidderHoldPrice, spec, taker.feeZone));
       }
       // TODO for OrderType.IOC_BUDGET - for REJECT should release leftover deposit after all trades
       // calculated
@@ -754,7 +770,8 @@ public final class RiskEngine implements WriteBytesMarshallable {
         // buying, use bidderHoldPrice to calculate released amount based on price difference
         final long priceDiff = ev.bidderHoldPrice - ev.price;
         final long amountDiffToReleaseInQuoteCurrency =
-            CoreArithmeticUtils.calculateAmountBidReleaseCorrMaker(size, priceDiff, spec, maker.feeZone);
+            CoreArithmeticUtils.calculateAmountBidReleaseCorrMaker(
+                size, priceDiff, spec, maker.feeZone);
         maker.accounts.addToValue(quoteCurrency, amountDiffToReleaseInQuoteCurrency);
 
         final long gainedAmountInBaseCurrency = CoreArithmeticUtils.calculateAmountAsk(size, spec);

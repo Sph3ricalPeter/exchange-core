@@ -99,7 +99,8 @@ public final class SingleUserReportQuery implements ReportQuery<SingleUserReport
                     uid,
                     userProfile.userStatus,
                     userProfile.accounts,
-                    positions));
+                    positions,
+                    userProfile.feeZone));
         } else {
             // not found
             return Optional.of(SingleUserReportResult.createFromRiskEngineNotFound(uid));

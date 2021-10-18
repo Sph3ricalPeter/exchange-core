@@ -1,7 +1,6 @@
 package exchange.core2.tests.examples;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 
 import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.ExchangeCore;
@@ -37,7 +36,6 @@ import exchange.core2.core.common.config.OrdersProcessingConfiguration;
 import exchange.core2.core.common.config.PerformanceConfiguration;
 import exchange.core2.core.common.config.ReportsQueriesConfiguration;
 import exchange.core2.core.common.config.SerializationConfiguration;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -48,7 +46,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
 import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 import org.junit.Test;
@@ -70,42 +67,23 @@ public class ITCoreSnapshottingExample {
   private static final long UNITS_PER_BTC = 100_000_000L;
   private static final long UNITS_PER_LTC = 100_000_000L;
 
-  private static final int CURRENCY_EUR = 10;
   private static final int CURRENCY_BTC = 11;
   private static final int CURRENCY_LTC = 15;
 
-  private static final int SYMBOL_BTC_EUR = 240;
-  private static final int SYMBOL_LTC_BTC = 241;
-
-  // symbol specification for the pair XBT/EUR
-  private static final CoreSymbolSpecification SYMBOL_SPEC_BTC_EUR =
-      CoreSymbolSpecification.builder()
-          .symbolId(SYMBOL_BTC_EUR) // symbol id
-          .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
-          .baseCurrency(CURRENCY_BTC) // base = satoshi (1E-8)
-          .quoteCurrency(CURRENCY_EUR) // quote = cents (1E-2)
-          .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
-          .quoteScaleK(100L) // 1 price step = 100 cents (1 EUR), can buy BTC with 1 EUR steps
-          .takerBaseFee(1L) // taker fee 1 cent per 1 lot
-          .makerBaseFee(3L) // maker fee 3 cents per 1 lot
-          .build();
+  private static final int SYMBOL_BTC_LTC = 241;
 
   // symbol specification for the pair LTC/XBT
   // scales are defined to meet our current precision requirement
   private static final CoreSymbolSpecification SYMBOL_SPEC_LTC_BTC =
       CoreSymbolSpecification.builder()
-          .symbolId(SYMBOL_LTC_BTC) // symbol id
+          .symbolId(SYMBOL_BTC_LTC) // symbol id
           .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
-          .baseCurrency(CURRENCY_LTC) // base = satoshi (1E-8)
-          .quoteCurrency(CURRENCY_BTC) // quote = litoshi (1E-8)
-          .baseScaleK(10_000L) // 1 price step = 10_000 litoshi (0.0001LTC)
-          .quoteScaleK(1L) // 1 lot = 1 satoshi (0.00000001 BTC)
-          .takerBaseFee(
-              0L) // can't use base fees with scale of 1, will be solved with % fees from volume
-          // hopefully
-          .makerBaseFee(
-              0L) // can't use base fees with scale of 1, will be solved with % fees from volume
-          // hopefully
+          .baseCurrency(CURRENCY_BTC) // base = satoshi (1E-8)
+          .quoteCurrency(CURRENCY_LTC) // quote = litoshi (1E-8)
+          .baseScaleK(1_000_000L) // 1 lot = 1M satoshi (0.01 BTC)
+          .quoteScaleK(10_000L) // 1 price step = 10K litoshi
+          .takerBaseFee(1900L) // taker fee 1900 litoshi per 1 lot
+          .makerBaseFee(700L) // maker fee 700 litoshi per 1 lot
           .build();
 
   // initialize custom query for retreiving symbols (currency pairs from the core)
@@ -129,43 +107,12 @@ public class ITCoreSnapshottingExample {
                 ))
         .loggingCfg(
             LoggingConfiguration.builder()
-                .loggingLevels(
-                    EnumSet.of(LoggingLevel.LOGGING_WARNINGS, LoggingLevel.LOGGING_RISK_DEBUG))
+                .loggingLevels(EnumSet.of(LoggingLevel.LOGGING_WARNINGS))
                 .build())
         .serializationCfg(
             SerializationConfiguration
                 .DISK_SNAPSHOT_ONLY_REPLACE); // default disk journaling to the `dumps` folder
     // this configuration automatically replaces files if they already exist
-  }
-
-  private static long convert(BigDecimal amount, int pair) throws Exception {
-    switch (pair) {
-      case SYMBOL_LTC_BTC:
-        BigDecimal baseScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.baseScaleK);
-        BigDecimal quoteScale = new BigDecimal(SYMBOL_SPEC_LTC_BTC.quoteScaleK);
-        BigDecimal lotsOfBTCPerBTC =
-            new BigDecimal(UNITS_PER_BTC / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
-        BigDecimal low = quoteScale.divide(lotsOfBTCPerBTC); // no rounding
-        BigDecimal high = new BigDecimal(Long.MAX_VALUE / SYMBOL_SPEC_LTC_BTC.quoteScaleK);
-        if (isWithinRange(amount, low, high)) {
-          long ret = amount.multiply(baseScale).divide(quoteScale).toBigInteger().longValue();
-          log.info(
-              "BTC={} -> satoshi={} * (scale={} / units={})",
-              amount,
-              ret,
-              SYMBOL_SPEC_LTC_BTC.baseScaleK,
-              UNITS_PER_BTC);
-          return ret;
-        }
-        throw new Exception("amount is out of range");
-      default:
-        throw new NotImplementedException(
-            String.format("conversion for pair %d is not implemented", pair));
-    }
-  }
-
-  private static boolean isWithinRange(BigDecimal amount, BigDecimal low, BigDecimal high) {
-    return amount.compareTo(low) >= 0 && amount.compareTo(high) <= 0;
   }
 
   // configuration for start from an existing snapshot, snapshot with given ID needs to be saved
@@ -211,7 +158,6 @@ public class ITCoreSnapshottingExample {
 
     // SYMBOLS - we pass symbol (currency pair) specifications to the core in a batch
     List<CoreSymbolSpecification> symbols = new ArrayList<>();
-    symbols.add(SYMBOL_SPEC_BTC_EUR);
     symbols.add(SYMBOL_SPEC_LTC_BTC);
 
     Future<CommandResultCode> future =
@@ -227,13 +173,11 @@ public class ITCoreSnapshottingExample {
     LongObjectHashMap<IntLongHashMap> userAccounts = new LongObjectHashMap<>();
 
     IntLongHashMap u1Accounts = new IntLongHashMap();
-    u1Accounts.put(CURRENCY_EUR, 0);
     u1Accounts.put(CURRENCY_BTC, 0);
     u1Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(301L, u1Accounts);
 
     IntLongHashMap u2Accounts = new IntLongHashMap();
-    u2Accounts.put(CURRENCY_EUR, 0);
     u2Accounts.put(CURRENCY_BTC, 0);
     u2Accounts.put(CURRENCY_LTC, 0);
     userAccounts.put(302L, u2Accounts);
@@ -244,13 +188,13 @@ public class ITCoreSnapshottingExample {
     log.info("BatchAddAccountsCommand result: " + future.get());
 
     // DEPOSITS
-    // first user deposits 5 BTC
+    // first user deposits 20 LTC
     future =
         api.submitCommandAsync(
             ApiAdjustUserBalance.builder()
                 .uid(301L)
-                .currency(CURRENCY_BTC)
-                .amount(5 * UNITS_PER_BTC) // in satoshi
+                .currency(CURRENCY_LTC)
+                .amount(20 * UNITS_PER_LTC) // in satoshi
                 .transactionId(
                     2001L) // transaction id has to be > 1002 because batchAddUsers balance
                 // adjustment sets last transaction id to 1000, needs to be replaced with
@@ -259,88 +203,58 @@ public class ITCoreSnapshottingExample {
 
     log.info("ApiAdjustUserBalance 1 result: " + future.get());
 
-    // second user deposits 20 LTC
+    // second user deposits 0.12 BTC
     future =
         api.submitCommandAsync(
             ApiAdjustUserBalance.builder()
                 .uid(302L)
-                .currency(CURRENCY_LTC)
-                .amount(20 * UNITS_PER_LTC) // in litoshi
+                .currency(CURRENCY_BTC)
+                .amount((long) (0.12f * UNITS_PER_BTC)) // in litoshi
                 .transactionId(2002L)
                 .build());
 
     log.info("ApiAdjustUserBalance 2 result: " + future.get());
 
     // ORDERS
-    // user creates a buy order of 12 LTC and price 1 / 154 ~ 0,0064935 BTC
-    // fees are equal to 0 for this example
-    // the user submits price and total fields, size is calculated
-    BigDecimal sizeInput = null;
-    BigDecimal priceInput = new BigDecimal(Double.toString(1D / 154));
-    BigDecimal totalInput = new BigDecimal(Double.toString(12D / 154));
-
-    long pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
-    long pricePerLot = pricePerLotScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
-    long totalPriceScaled = convert(totalInput, SYMBOL_LTC_BTC);
-    long totalPrice = totalPriceScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
-    long sizeCalc = totalPriceScaled / pricePerLotScaled;
-    log.info("totalPrice {}, pricePerLot {}, sizeCalc {}", totalPrice, pricePerLot, sizeCalc);
-
+    // first user places Good-till-Cancel Bid order
+    // he assumes BTCLTC exchange rate 154 LTC for 1 BTC
+    // bid price for 1 lot (0.01BTC) is 1.54 LTC => 1_5400_0000 litoshi => 10K * 15_400 (in price
+    // steps)
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(301L)
                 .orderId(5001L)
-                .price(pricePerLotScaled) // assume 154LTC per 1BTC, so 1LTC costs 1/154BTC, that's
-                // 100_000_000/154 satoshi = 649_350 satoshi ~ price=649_350 *
-                // quoteScale=1 satoshi per 1 LTC, that's 650_000 / 10_000 = 65 per
-                // 1 lot of LTC
+                .price(15_400L)
                 .reservePrice(
-                    pricePerLotScaled) // can move bid order up to price of 70 lots of BTC without
-                // order
-                // cancel (700_000 satoshi) ~ 142,8 LTC per 1BTC
-                .size(sizeCalc) // order size is 12 lots (so im buying size=12 * baseScale=1_000_000
-                // litoshi = 12_000_000 litoshi, im paying size=12 * (reservePrice=70
-                // * quoteScale=10_000 + makerFee))
+                    15_600L) // can move bid order up to the 1.56 LTC, without replacing it
+                .size(12L) // order size is 12 lots
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC) // Good-till-Cancel
-                .symbol(SYMBOL_LTC_BTC)
+                .symbol(SYMBOL_BTC_LTC)
                 .build());
 
     log.info("ApiPlaceOrder 1 result: " + future.get());
 
-    // second user places Immediate-or-Cancel Ask (Sell) order of 10LTC
-    // he assumes wost rate to sell ~ 161.3 LTC for 1 BTC
-    sizeInput = null;
-    priceInput = new BigDecimal(Double.toString(1D / 161.2D));
-    totalInput = new BigDecimal(Double.toString(10D / 161.2D));
-
-    pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
-    pricePerLot = pricePerLotScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
-    totalPriceScaled = convert(totalInput, SYMBOL_LTC_BTC);
-    totalPrice = totalPriceScaled * SYMBOL_SPEC_LTC_BTC.quoteScaleK;
-    sizeCalc = totalPriceScaled / pricePerLotScaled;
-    log.info("totalPrice {}, pricePerLot {}, sizeCalc {}", totalPrice, pricePerLot, sizeCalc);
-
+    // second user places Immediate-or-Cancel Ask (Sell) order
+    // he assumes wost rate to sell 152.5 LTC for 1 BTC
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(302L)
                 .orderId(5002L)
-                .price(pricePerLotScaled) // sell at price 1LTC for price=62 * quoteScale=10_000 =
-                // 620_000
-                // satoshi ~ 161,2LTC per 1BTC
-                .size(sizeCalc) // order size is 10 lots
+                .price(15_250L)
+                .size(10L) // order size is 10 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
-                .symbol(SYMBOL_LTC_BTC)
+                .symbol(SYMBOL_BTC_LTC)
                 .build());
 
     log.info("ApiPlaceOrder 2 result: " + future.get());
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture1 =
-        api.requestOrderBookAsync(SYMBOL_LTC_BTC, 10);
+        api.requestOrderBookAsync(SYMBOL_BTC_LTC, 10);
     log.info("ApiOrderBookRequest result: " + orderBookFuture1.get());
 
     // we can check that users got added successfully and balances adjusted and trade executed
@@ -390,39 +304,25 @@ public class ITCoreSnapshottingExample {
         api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
     log.info(balancesReportAfterSnapshotLoad.get().toString());
 
-    // second user places Immediate-or-Cancel Ask (Sell) order
-    // he assumes wost rate to sell 158.7LTC for 1 BTC
-    // this time we calculate size from the total price
-    sizeInput = new BigDecimal(2L);
-    priceInput = new BigDecimal(Double.toString(1D / 158.7D));
-    totalInput = null;
-
-    pricePerLotScaled = convert(priceInput, SYMBOL_LTC_BTC);
-    totalPriceScaled = convert(sizeInput.multiply(priceInput), SYMBOL_LTC_BTC);
-    sizeCalc = sizeInput.toBigInteger().longValue();
-    log.info(
-        "totalPrice {}, pricePerLot {}, sizeCalc {}",
-        totalPriceScaled,
-        pricePerLotScaled,
-        sizeCalc);
-
+    // second user places Immediate-or-Cancel Ask (Sell) order again
+    // he assumes wost rate to sell 152.5 LTC for 1 BTC
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
                 .uid(302L)
-                .orderId(5003L)
-                .price(pricePerLotScaled)
-                .size(sizeCalc)
+                .orderId(5002L)
+                .price(15_250L)
+                .size(2L) // order size is 2 lots
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC) // Immediate-or-Cancel
-                .symbol(SYMBOL_LTC_BTC)
+                .symbol(SYMBOL_BTC_LTC)
                 .build());
 
     log.info("ApiPlaceOrder 3 result: " + future.get());
 
     // request order book again
     CompletableFuture<L2MarketData> orderBookFuture2 =
-        api.requestOrderBookAsync(SYMBOL_LTC_BTC, 10);
+        api.requestOrderBookAsync(SYMBOL_BTC_LTC, 10);
     log.info("ApiOrderBookRequest result: " + orderBookFuture2.get());
 
     // check user reports again

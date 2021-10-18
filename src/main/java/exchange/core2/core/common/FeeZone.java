@@ -43,4 +43,22 @@ public class FeeZone implements WriteBytesMarshallable, StateHash {
   public int stateHash() {
     return Objects.hash(makerFeeFraction, takerFeeFraction);
   }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    FeeZone feeZone = (FeeZone) o;
+    return Double.compare(feeZone.makerFeeFraction, makerFeeFraction) == 0
+        && Double.compare(feeZone.takerFeeFraction, takerFeeFraction) == 0;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(makerFeeFraction, takerFeeFraction);
+  }
 }

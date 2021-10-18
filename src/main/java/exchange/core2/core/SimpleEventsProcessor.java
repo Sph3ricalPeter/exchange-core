@@ -1,5 +1,10 @@
 package exchange.core2.core;
 
+import exchange.core2.core.IEventsHandler.ApiCommandResult;
+import exchange.core2.core.IEventsHandler.OrderBook;
+import exchange.core2.core.IEventsHandler.ReduceEvent;
+import exchange.core2.core.IEventsHandler.RejectEvent;
+import exchange.core2.core.IEventsHandler.TradeEvent;
 import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.MatcherEventType;
 import exchange.core2.core.common.MatcherTradeEvent;
@@ -16,11 +21,41 @@ import org.agrona.collections.MutableReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ObjLongConsumer;
+import sun.java2d.pipe.SpanShapeRenderer.Simple;
 
 @RequiredArgsConstructor
 @Getter
 @Slf4j
 public class SimpleEventsProcessor implements ObjLongConsumer<OrderCommand> {
+
+  public static final SimpleEventsProcessor LOG_EVENTS =
+      new SimpleEventsProcessor(
+          new IEventsHandler() {
+            @Override
+            public void tradeEvent(TradeEvent tradeEvent) {
+              log.info("Trade event: {}", tradeEvent);
+            }
+
+            @Override
+            public void reduceEvent(ReduceEvent reduceEvent) {
+                log.info("Reduce event: {}", reduceEvent);
+            }
+
+            @Override
+            public void rejectEvent(RejectEvent rejectEvent) {
+                log.info("Reject event: {}", rejectEvent);
+            }
+
+            @Override
+            public void commandResult(ApiCommandResult commandResult) {
+                log.info("Command result: {}", commandResult);
+            }
+
+            @Override
+            public void orderBook(OrderBook orderBook) {
+                log.info("OrderBook event: {}", orderBook);
+            }
+          });
 
     private final IEventsHandler eventsHandler;
 

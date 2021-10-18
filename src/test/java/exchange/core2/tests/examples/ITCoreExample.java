@@ -2,10 +2,19 @@ package exchange.core2.tests.examples;
 
 import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.ExchangeCore;
-import exchange.core2.core.IEventsHandler;
 import exchange.core2.core.SimpleEventsProcessor;
-import exchange.core2.core.common.*;
-import exchange.core2.core.common.api.*;
+import exchange.core2.core.common.CoreSymbolSpecification;
+import exchange.core2.core.common.FeeZone;
+import exchange.core2.core.common.L2MarketData;
+import exchange.core2.core.common.OrderAction;
+import exchange.core2.core.common.OrderType;
+import exchange.core2.core.common.SymbolType;
+import exchange.core2.core.common.api.ApiAddUser;
+import exchange.core2.core.common.api.ApiAdjustUserBalance;
+import exchange.core2.core.common.api.ApiCancelOrder;
+import exchange.core2.core.common.api.ApiMoveOrder;
+import exchange.core2.core.common.api.ApiPersistState;
+import exchange.core2.core.common.api.ApiPlaceOrder;
 import exchange.core2.core.common.api.binary.BatchAddSymbolsCommand;
 import exchange.core2.core.common.api.reports.SingleUserReportQuery;
 import exchange.core2.core.common.api.reports.SingleUserReportResult;
@@ -21,11 +30,10 @@ import exchange.core2.core.common.config.PerformanceConfiguration;
 import exchange.core2.core.common.config.ReportsQueriesConfiguration;
 import exchange.core2.core.common.config.SerializationConfiguration;
 import java.util.EnumSet;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 @Slf4j
 public class ITCoreExample {
@@ -37,37 +45,7 @@ public class ITCoreExample {
   public void sampleTest() throws Exception {
 
     // simple async events handler
-    SimpleEventsProcessor eventsProcessor =
-        new SimpleEventsProcessor(
-            new IEventsHandler() {
-              @Override
-              public void tradeEvent(TradeEvent tradeEvent) {
-                System.out.println("Trade event: " + tradeEvent);
-              }
-
-              @Override
-              public void reduceEvent(ReduceEvent reduceEvent) {
-                System.out.println("Reduce event: " + reduceEvent);
-              }
-
-              @Override
-              public void rejectEvent(RejectEvent rejectEvent) {
-                System.out.println("Reject event: " + rejectEvent);
-              }
-
-              @Override
-              public void commandResult(ApiCommandResult commandResult) {
-                System.out.println("Command result: " + commandResult);
-              }
-
-              @Override
-              public void orderBook(OrderBook orderBook) {
-                System.out.println("OrderBook event: " + orderBook);
-              }
-            });
-
-    // default exchange configuration
-    // ExchangeConfiguration conf = ExchangeConfiguration.defaultBuilder().build();
+    SimpleEventsProcessor eventsProcessor = SimpleEventsProcessor.LOG_EVENTS;
 
     // my test config with snapshotting enabled
     ExchangeConfiguration conf =
@@ -87,11 +65,7 @@ public class ITCoreExample {
             // reports but how?
             .loggingCfg(
                 LoggingConfiguration.builder()
-                    .loggingLevels(
-                        EnumSet.of(
-                            LoggingLevel.LOGGING_WARNINGS,
-                            LoggingLevel.LOGGING_MATCHING_DEBUG,
-                            LoggingLevel.LOGGING_RISK_DEBUG))
+                    .loggingLevels(EnumSet.of(LoggingLevel.LOGGING_WARNINGS))
                     .build())
             .serializationCfg(
                 SerializationConfiguration
@@ -131,17 +105,17 @@ public class ITCoreExample {
             .build();
 
     future = api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbolSpecXbtLtc));
-    System.out.println("BatchAddSymbolsCommand result: " + future.get());
+    log.info("BatchAddSymbolsCommand result: " + future.get());
 
     // create user uid=301
     future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).feeZone(FeeZone.NONE).build());
 
-    System.out.println("ApiAddUser 1 result: " + future.get());
+    log.info("ApiAddUser 1 result: " + future.get());
 
     // create user uid=302
     future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).feeZone(FeeZone.NONE).build());
 
-    System.out.println("ApiAddUser 2 result: " + future.get());
+    log.info("ApiAddUser 2 result: " + future.get());
 
     // first user deposits 20 LTC
     future =
@@ -153,7 +127,7 @@ public class ITCoreExample {
                 .transactionId(1L)
                 .build());
 
-    System.out.println("ApiAdjustUserBalance 1 result: " + future.get());
+    log.info("ApiAdjustUserBalance 1 result: " + future.get());
 
     // second user deposits 0.10 BTC
     future =
@@ -165,7 +139,7 @@ public class ITCoreExample {
                 .transactionId(2L)
                 .build());
 
-    System.out.println("ApiAdjustUserBalance 2 result: " + future.get());
+    log.info("ApiAdjustUserBalance 2 result: " + future.get());
 
     // first user places Good-till-Cancel Bid order
     // he assumes BTCLTC exchange rate 154 LTC for 1 BTC
@@ -185,10 +159,10 @@ public class ITCoreExample {
                 .symbol(symbolXbtLtc)
                 .build());
 
-    System.out.println("ApiPlaceOrder 1 result: " + future.get());
+    log.info("ApiPlaceOrder 1 result: " + future.get());
 
     Future<SingleUserReportResult> report0 = api.processReport(new SingleUserReportQuery(301), 0);
-    System.out.println(report0.get());
+    log.info(report0.get().toString());
 
     // second user places Immediate-or-Cancel Ask (Sell) order
     // he assumes wost rate to sell 152.5 LTC for 1 BTC
@@ -204,14 +178,14 @@ public class ITCoreExample {
                 .symbol(symbolXbtLtc)
                 .build());
 
-    System.out.println("ApiPlaceOrder 2 result: " + future.get());
+    log.info("ApiPlaceOrder 2 result: " + future.get());
 
     Future<SingleUserReportResult> report1 = api.processReport(new SingleUserReportQuery(302), 0);
-    System.out.println(report1.get());
+    log.info(report1.get().toString());
 
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture = api.requestOrderBookAsync(symbolXbtLtc, 10);
-    System.out.println("ApiOrderBookRequest result: " + orderBookFuture.get());
+    log.info("ApiOrderBookRequest result: " + orderBookFuture.get());
 
     // first user moves remaining order to price 1.53 LTC
     future =
@@ -223,21 +197,21 @@ public class ITCoreExample {
                 .symbol(symbolXbtLtc)
                 .build());
 
-    System.out.println("ApiMoveOrder 2 result: " + future.get());
+    log.info("ApiMoveOrder 2 result: " + future.get());
 
     // first user cancel remaining order
     future =
         api.submitCommandAsync(
             ApiCancelOrder.builder().uid(301L).orderId(5001L).symbol(symbolXbtLtc).build());
 
-    System.out.println("ApiCancelOrder 2 result: " + future.get());
+    log.info("ApiCancelOrder 2 result: " + future.get());
 
     // check balances
     Future<SingleUserReportResult> report2 = api.processReport(new SingleUserReportQuery(301), 0);
-    System.out.println(report2.get());
+    log.info(report2.get().toString());
 
     Future<SingleUserReportResult> report3 = api.processReport(new SingleUserReportQuery(302), 0);
-    System.out.println(report3.get());
+    log.info(report3.get().toString());
 
     // first user withdraws 0.10 BTC
     future =
@@ -249,16 +223,16 @@ public class ITCoreExample {
                 .transactionId(3L)
                 .build());
 
-    System.out.println("ApiAdjustUserBalance 1 result: " + future.get());
+    log.info("ApiAdjustUserBalance 1 result: " + future.get());
 
     // check fees collected
     Future<TotalCurrencyBalanceReportResult> totalsReport =
         api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
-    System.out.println("LTC fees collected: " + totalsReport.get().getFees().get(currencyCodeLtc));
+    log.info("LTC fees collected: " + totalsReport.get().getFees().get(currencyCodeLtc));
 
     // test snapshotting
     future = api.submitCommandAsync(ApiPersistState.builder().dumpId(loadedSnapshot + 1).build());
-    System.out.println("ApiPersistState result: " + future.get());
+    log.info("ApiPersistState result: " + future.get());
 
     exchangeCore.shutdown();
   }
