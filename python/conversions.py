@@ -3,8 +3,6 @@ from decimal import *
 getcontext().prec = 10
 
 LONG_MAX = 9_223_372_036_854_775_807
-N_UNITS_BASE = Decimal(100_000_000)
-N_UNITS_QUOTE = Decimal(100_000_000)
 FEE = 0
 
 9223372036854775807
@@ -48,7 +46,7 @@ class Convertor():
         nLots = self.pair.nUnitsBase / self.pair.baseScale
         ppLot = price / nLots
         ppLotUnits = ppLot * self.pair.nUnitsQuote
-        return ppLotUnits / self.pair.quoteScale
+        return ppLotUnits / self.pair.quoteScale  # ((price / (self.pair.nUnitsBase / self.pair.baseScale)) * self.pair.nUnitsQuote) / self.pairQuoteScale
 
     # convert size from X base to X lots of base
     def convertSize(self, size):
@@ -82,6 +80,11 @@ c = Convertor(
     ),  # price per bitcion is about 1724x the current real price, should be enough headroom
     size=Decimal(10_000_000_000)
 )  # can trade 2 trillion dollars worth of LTC in one T, not bad
+print(c.toString(), end=", ")
+print(c.totalCalcToString())
+
+# Testing
+c = Convertor(pair=PAIR_LTC_BTC, price=Decimal(0.003), size=1)
 print(c.toString(), end=", ")
 print(c.totalCalcToString())
 
