@@ -31,16 +31,24 @@ public final class CoreArithmeticUtils {
         return size * (price * spec.quoteScaleK);
     }
 
+    // calculate amount of quote for bidding taker including taker fee
+    // zone fee is calculated from base = size * price * quoteScale
+    // base fee remains only dependent on order size
     public static long calculateAmountBidTakerFee(long size, long price, CoreSymbolSpecification spec, FeeZone feeZone) {
-        return Math.round((1 + feeZone.takerFeeFraction) * size * (price * spec.quoteScaleK + spec.takerBaseFee));
+        log.info("calculateAmountBidTakerFee: {} * ((1 + {}) * {} * {} + {}", size, feeZone.takerFeeFraction, price, spec.quoteScaleK, spec.takerBaseFee);
+        return Math.round(size * ((1 + feeZone.takerFeeFraction) * price * spec.quoteScaleK + spec.takerBaseFee));
     }
 
-    public static long calculateAmountBidReleaseCorrMaker(long size, long priceDiff, CoreSymbolSpecification spec, FeeZone feeZone) {
-        return Math.round((1 + feeZone.takerFeeFraction - feeZone.makerFeeFraction) * size * (priceDiff * spec.quoteScaleK + (spec.takerBaseFee - spec.makerBaseFee)));
+    public static long calculateAmountBidReleaseCorrMaker(long size, long price, long priceDiff, CoreSymbolSpecification spec, FeeZone feeZone) {
+        log.info("calculateAmountBidReleaseCorrMaker: {} * (({} - {}) * {} * {} + ({} - {})))", size, feeZone.takerFeeFraction, feeZone.makerFeeFraction, priceDiff, spec.quoteScaleK, spec.takerBaseFee, spec.makerBaseFee);
+        // TODO: if price diff is 0, fees from zone don't apply at all
+        return Math.round(size * ((feeZone.takerFeeFraction - feeZone.makerFeeFraction) * price * spec.quoteScaleK + priceDiff * spec.quoteScaleK + (spec.takerBaseFee - spec.makerBaseFee)));
     }
 
+    // TODO: budget? will not be used most likely ...
     public static long calculateAmountBidTakerFeeForBudget(long size, long budgetInSteps, CoreSymbolSpecification spec, FeeZone feeZone) {
-        return Math.round((1 + feeZone.takerFeeFraction) * (budgetInSteps * spec.quoteScaleK + size * spec.takerBaseFee));
+        // calculate % fee from budget but base fee from size?
+        return Math.round((1 + feeZone.takerFeeFraction) * budgetInSteps * spec.quoteScaleK + size * spec.takerBaseFee);
     }
 
 }

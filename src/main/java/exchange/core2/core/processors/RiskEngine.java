@@ -752,6 +752,7 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
     final int quoteCurrency = spec.quoteCurrency;
 
+    long makerFeesTotal = 0L;
     while (ev != null) {
       assert ev.eventType == MatcherEventType.TRADE;
 
@@ -763,16 +764,28 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
       // process transfers for buying maker
       if (uidForThisHandler(ev.matchedOrderUid)) {
-        final long size = ev.size;
         final UserProfile maker =
             userProfileService.getUserProfileOrAddSuspended(ev.matchedOrderUid);
 
+        final long price = ev.price;
+        final long size = ev.size;
+
         // buying, use bidderHoldPrice to calculate released amount based on price difference
         final long priceDiff = ev.bidderHoldPrice - ev.price;
+        /* TODO: something is not right here, maker pays taker fee even though he placed the order
+         without it being executed immediately */
+        // that happens because priceDiff affects % fee, which it probably shouldn't
         final long amountDiffToReleaseInQuoteCurrency =
             CoreArithmeticUtils.calculateAmountBidReleaseCorrMaker(
-                size, priceDiff, spec, maker.feeZone);
+                size, price, priceDiff, spec, maker.feeZone);
         maker.accounts.addToValue(quoteCurrency, amountDiffToReleaseInQuoteCurrency);
+        log.info("release {} to maker {}", amountDiffToReleaseInQuoteCurrency, maker.uid);
+
+        // we need to calculate fee separately for each maker, as his fee zone is specific to him
+        long makerFee =
+            Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK);
+        makerFeesTotal += makerFee;
+        log.info("maker {} pays {} in fees", maker.uid, makerFee);
 
         final long gainedAmountInBaseCurrency = CoreArithmeticUtils.calculateAmountAsk(size, spec);
         maker.accounts.addToValue(spec.baseCurrency, gainedAmountInBaseCurrency);
@@ -786,16 +799,26 @@ public final class RiskEngine implements WriteBytesMarshallable {
     if (taker != null) {
       taker.accounts.addToValue(
           quoteCurrency,
-          takerSizePriceForThisHandler * spec.quoteScaleK
-              - spec.takerBaseFee * takerSizeForThisHandler);
+          Math.round(
+              (1 - taker.feeZone.takerFeeFraction) * takerSizePriceForThisHandler * spec.quoteScaleK
+                  - spec.takerBaseFee * takerSizeForThisHandler));
     }
 
     if (takerSizeForThisHandler != 0 || makerSizeForThisHandler != 0) {
 
-      fees.addToValue(
-          quoteCurrency,
-          spec.takerBaseFee * takerSizeForThisHandler
-              + spec.makerBaseFee * makerSizeForThisHandler);
+      long takerFeesTotal = spec.takerBaseFee * takerSizeForThisHandler;
+      if (taker != null) {
+        takerFeesTotal +=
+            Math.round(
+                taker.feeZone.takerFeeFraction * takerSizePriceForThisHandler * spec.quoteScaleK);
+        log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
+      }
+
+      log.info("makers paid {} in fees in total", makerFeesTotal);
+
+      makerFeesTotal += spec.makerBaseFee * makerSizeForThisHandler;
+
+      fees.addToValue(quoteCurrency, makerFeesTotal + takerFeesTotal);
     }
   }
 
@@ -814,10 +837,11 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
     final int quoteCurrency = spec.quoteCurrency;
 
+    long makerFeesTotal = 0L;
     while (ev != null) {
       assert ev.eventType == MatcherEventType.TRADE;
 
-      // perform transfers for taker
+      // perform transfers for buying taker
       if (taker != null) {
 
         takerSizePriceSum += ev.size * ev.price;
@@ -826,15 +850,22 @@ public final class RiskEngine implements WriteBytesMarshallable {
         takerSizeForThisHandler += ev.size;
       }
 
-      // process transfers for maker
+      // process transfers for selling maker
       if (uidForThisHandler(ev.matchedOrderUid)) {
         final long size = ev.size;
+        final long price = ev.price;
         final UserProfile maker =
             userProfileService.getUserProfileOrAddSuspended(ev.matchedOrderUid);
         final long gainedAmountInQuoteCurrency =
-            CoreArithmeticUtils.calculateAmountBid(size, ev.price, spec);
-        maker.accounts.addToValue(
-            quoteCurrency, gainedAmountInQuoteCurrency - spec.makerBaseFee * size);
+            CoreArithmeticUtils.calculateAmountBid(size, price, spec);
+
+        final long makerFee =
+            Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK)
+                + spec.makerBaseFee * size;
+        makerFeesTotal += makerFee;
+
+        maker.accounts.addToValue(quoteCurrency, gainedAmountInQuoteCurrency - makerFee);
+
         makerSizeForThisHandler += size;
       }
 
@@ -855,10 +886,18 @@ public final class RiskEngine implements WriteBytesMarshallable {
     }
 
     if (takerSizeForThisHandler != 0 || makerSizeForThisHandler != 0) {
-      fees.addToValue(
-          quoteCurrency,
-          spec.takerBaseFee * takerSizeForThisHandler
-              + spec.makerBaseFee * makerSizeForThisHandler);
+
+      long takerFeesTotal = spec.takerBaseFee * takerSizeForThisHandler;
+
+      if (taker != null) {
+        takerFeesTotal +=
+            Math.round(taker.feeZone.takerFeeFraction * takerSizePriceSum * spec.quoteScaleK);
+        log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
+      }
+
+      log.info("makers paid {} in fees in total", makerFeesTotal);
+
+      fees.addToValue(quoteCurrency, makerFeesTotal + takerFeesTotal);
     }
   }
 

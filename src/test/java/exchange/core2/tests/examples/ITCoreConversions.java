@@ -47,7 +47,7 @@ public class ITCoreConversions {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
 
-  private static final FeeZone FEE_ZONE_SUB_10K_VOLUME = FeeZone.fromPercent(0.35F, 0.3F);
+  private static final FeeZone FEE_ZONE_SUB_10K_VOLUME = FeeZone.fromPercent(10F, 15F);
 
   private static final Currency CURRENCY_BTC = new Currency(11, 100_000_000L);
   private static final Currency CURRENCY_LTC = new Currency(15, 100_000_000L);
@@ -180,8 +180,8 @@ public class ITCoreConversions {
 
     // input, known price and size
     sizeInput = null;
-    priceInput = new BigDecimal("0.0026");
-    totalInput = new BigDecimal("0.002");
+    priceInput = new BigDecimal("0.003");
+    totalInput = new BigDecimal("0.003");
 
     pricePerLotScaled = Convert.priceToPricePerLot(PAIR_LTC_BTC, priceInput);
     totalPriceScaled =
