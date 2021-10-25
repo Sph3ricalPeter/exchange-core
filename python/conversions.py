@@ -64,11 +64,11 @@ class Convertor():
 
 
 # Pairs
-PAIR_BTC_LTC = Pair(baseScale=Decimal(1_000_000), quoteScale=Decimal(10_000))
+# PAIR_BTC_LTC = Pair(baseScale=Decimal(1_000_000), quoteScale=Decimal(10_000))
 PAIR_LTC_BTC = Pair(baseScale=Decimal(10_000), quoteScale=Decimal(1))
 
 # COINMATE RANGE MIN
-c = Convertor(pair=PAIR_LTC_BTC, price=Decimal(0.0001), size=Decimal(0.0001))
+c = Convertor(pair=PAIR_LTC_BTC, price=Decimal(0.00001), size=Decimal(0.0001))
 print(c.toString(), end=", ")
 print(c.totalCalcToString())
 

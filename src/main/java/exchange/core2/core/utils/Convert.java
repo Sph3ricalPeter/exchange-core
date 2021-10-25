@@ -5,19 +5,19 @@ import java.math.BigDecimal;
 /** @author Petr Ježek */
 public class Convert {
 
-  public static long priceToPricePerLot(CurrencyPair pair, BigDecimal amount) {
-    return amount
+  public static long priceToPricePerLot(CurrencyPair pair, BigDecimal price) {
+    return price
         .multiply(
             new BigDecimal(
                 (pair.quote.nUnits * pair.baseScale) / (pair.base.nUnits * pair.quoteScale)))
         .longValue();
   }
 
-  public static long sizeToLots(CurrencyPair pair, BigDecimal amount) {
-    return amount.multiply(new BigDecimal(pair.base.nUnits / pair.baseScale)).longValue();
+  public static long sizeToLots(CurrencyPair pair, BigDecimal size) {
+    return size.multiply(new BigDecimal(pair.base.nUnits / pair.baseScale)).longValue();
   }
 
-  public static long calcTotal(CurrencyPair pair, long sizeLots, long pricePerLotScaled) {
+  public static long calcTotalScaled(CurrencyPair pair, long sizeLots, long pricePerLotScaled) {
     return sizeLots * (pricePerLotScaled * pair.quoteScale); // base fee is 0:
   }
 

@@ -1,5 +1,7 @@
 package exchange.core2.tests.examples;
 
+import static org.junit.Assert.assertEquals;
+
 import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.ExchangeCore;
 import exchange.core2.core.SimpleEventsProcessor;
@@ -31,10 +33,13 @@ import exchange.core2.core.utils.Convert;
 import exchange.core2.core.utils.Currency;
 import exchange.core2.core.utils.CurrencyPair;
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
@@ -47,19 +52,17 @@ public class ITCoreConversions {
 
   private static final String EXCHANGE_ID = "TEST_EXCHANGE";
 
-  private static final FeeZone FEE_ZONE_SUB_10K_VOLUME = FeeZone.fromPercent(10F, 15F);
+  private static final FeeZone TEST_FEE_ZONE = FeeZone.fromPercent(0.08, 0.2);
 
   private static final Currency CURRENCY_BTC = new Currency(11, 100_000_000L);
   private static final Currency CURRENCY_LTC = new Currency(15, 100_000_000L);
-
-  private static final int SYMBOL_LTC_BTC = 241;
 
   private static final CurrencyPair PAIR_LTC_BTC =
       new CurrencyPair(241, CURRENCY_BTC, CURRENCY_LTC, 10_000L, 1L);
 
   private static final CoreSymbolSpecification SYMBOL_SPEC_LTC_BTC =
       CoreSymbolSpecification.builder()
-          .symbolId(SYMBOL_LTC_BTC)
+          .symbolId(PAIR_LTC_BTC.getId())
           .type(SymbolType.CURRENCY_EXCHANGE_PAIR)
           .baseCurrency(CURRENCY_LTC.getId())
           .quoteCurrency(CURRENCY_BTC.getId())
@@ -123,9 +126,7 @@ public class ITCoreConversions {
     userAccounts.put(302L, u2Accounts);
 
     // set fees of all initialized users to sub 10k volume
-    future =
-        api.submitBinaryDataAsync(
-            new BatchAddAccountsCommand(userAccounts, FEE_ZONE_SUB_10K_VOLUME));
+    future = api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts, TEST_FEE_ZONE));
     log.info("BatchAddAccountsCommand result: " + future.get());
 
     // DEPOSITS
@@ -160,8 +161,12 @@ public class ITCoreConversions {
     // conversion
     long pricePerLotScaled = Convert.priceToPricePerLot(PAIR_LTC_BTC, priceInput);
     long sizeLots = Convert.sizeToLots(PAIR_LTC_BTC, sizeInput);
-    long totalPriceScaled = Convert.calcTotal(PAIR_LTC_BTC, sizeLots, pricePerLotScaled);
-    log.info("pricePerLotScaled: {}, sizeLots: {}, totalPriceScaled: {}", pricePerLotScaled, sizeLots, totalPriceScaled);
+    long totalPriceScaled = Convert.calcTotalScaled(PAIR_LTC_BTC, sizeLots, pricePerLotScaled);
+    log.info(
+        "pricePerLotScaled: {}, sizeLots: {}, totalPriceScaled: {}",
+        pricePerLotScaled,
+        sizeLots,
+        totalPriceScaled);
 
     future =
         api.submitCommandAsync(
@@ -173,7 +178,7 @@ public class ITCoreConversions {
                 .size(sizeLots)
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC)
-                .symbol(SYMBOL_LTC_BTC)
+                .symbol(PAIR_LTC_BTC.getId())
                 .build());
 
     log.info("ApiPlaceOrder 1 result: " + future.get());
@@ -187,7 +192,11 @@ public class ITCoreConversions {
     totalPriceScaled =
         totalInput.multiply(new BigDecimal(PAIR_LTC_BTC.getQuote().getNUnits())).longValue();
     sizeLots = totalPriceScaled / pricePerLotScaled;
-    log.info("pricePerLotScaled: {}, sizeLots: {}, totalPriceScaled: {}", pricePerLotScaled, sizeLots, totalPriceScaled);
+    log.info(
+        "pricePerLotScaled: {}, sizeLots: {}, totalPriceScaled: {}",
+        pricePerLotScaled,
+        sizeLots,
+        totalPriceScaled);
 
     future =
         api.submitCommandAsync(
@@ -198,7 +207,7 @@ public class ITCoreConversions {
                 .size(sizeLots)
                 .action(OrderAction.ASK)
                 .orderType(OrderType.IOC)
-                .symbol(SYMBOL_LTC_BTC)
+                .symbol(PAIR_LTC_BTC.getId())
                 .build());
 
     log.info("ApiPlaceOrder 2 result: " + future.get());
@@ -206,13 +215,15 @@ public class ITCoreConversions {
     // GET DATA
     // request order book
     CompletableFuture<L2MarketData> orderBookFuture1 =
-        api.requestOrderBookAsync(SYMBOL_LTC_BTC, 10);
+        api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
     log.info("ApiOrderBookRequest result: " + orderBookFuture1.get());
 
-    Future<SingleUserReportResult> u1Report2 = api.processReport(new SingleUserReportQuery(301L), 0);
+    Future<SingleUserReportResult> u1Report2 =
+        api.processReport(new SingleUserReportQuery(301L), 0);
     log.info(u1Report2.get().toString());
 
-    Future<SingleUserReportResult> u2Report2 = api.processReport(new SingleUserReportQuery(302L), 0);
+    Future<SingleUserReportResult> u2Report2 =
+        api.processReport(new SingleUserReportQuery(302L), 0);
     log.info(u2Report2.get().toString());
 
     Future<TotalCurrencyBalanceReportResult> balancesReportBeforeSnapshot =
@@ -222,17 +233,161 @@ public class ITCoreConversions {
     ec.shutdown();
   }
 
-  /* @Test
-  public void testConversion_amountWithinRange_shouldConvertCorrectly() throws Exception {
-    BigDecimal amount = new BigDecimal(0.0001);
-    long expected = 10_000L;
-    long actual = convert(amount, SYMBOL_LTC_BTC);
+  @Test
+  public void testConvertPrice_havePriceInBD_shouldConvertCorrectly() {
+    BigDecimal price = new BigDecimal("0.003");
+    long expected = 30L; // 10_000 lots -> 0.003 / 10_000 * 100_000_000
+    long actual = Convert.priceToPricePerLot(PAIR_LTC_BTC, price);
     assertEquals(expected, actual);
   }
 
   @Test
-  public void testConversion_amountBelowRange_shouldThrowException() throws Exception {
-    BigDecimal amount = new BigDecimal(0.00009);
-    assertThrows(Exception.class, () -> convert(amount, SYMBOL_LTC_BTC));
-  }*/
+  public void testConvertSize_haveSize_shouldConvertCorrectly() {
+    BigDecimal size = new BigDecimal("0.001");
+    long expected = 10L; // 0.001 * 100_000_000 units / 10_000 units per lot
+    long actual = Convert.sizeToLots(PAIR_LTC_BTC, size);
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testConvertPrice_haveLowPrice_shouldHaveRoundingError() {
+    BigDecimal price = new BigDecimal("0.00001");
+    long expected = 0;
+    long actual =
+        Convert.priceToPricePerLot(
+            PAIR_LTC_BTC, price); // price per lot is 0.1, gets rounded to 0, so it fits into long
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testFeeZones_doSimpleTrade_totalFeesShouldMatch()
+      throws ExecutionException, InterruptedException {
+    ExchangeConfiguration conf = testExchangeConfCleanBuilder().build();
+    ExchangeCore ec =
+        ExchangeCore.builder()
+            .resultsConsumer(SimpleEventsProcessor.LOG_EVENTS)
+            .exchangeConfiguration(conf)
+            .build();
+    ec.startup();
+
+    ExchangeApi api = ec.getApi();
+
+    // SYMBOLS
+    List<CoreSymbolSpecification> symbols = new ArrayList<>();
+    symbols.add(SYMBOL_SPEC_LTC_BTC);
+    api.submitBinaryDataAsync(new BatchAddSymbolsCommand(symbols));
+
+    // ACCOUNTS & BALANCES
+    LongObjectHashMap<IntLongHashMap> userAccounts = new LongObjectHashMap<>();
+    final long BUYER_MAKER = 301L;
+    final long SELLER_TAKER = 302L;
+
+    userAccounts.put(BUYER_MAKER, new IntLongHashMap());
+    userAccounts.put(SELLER_TAKER, new IntLongHashMap());
+
+    // FEES
+    api.submitBinaryDataAsync(new BatchAddAccountsCommand(userAccounts, TEST_FEE_ZONE));
+
+    // DEPOSITS
+    api.submitCommandAsync(
+        ApiAdjustUserBalance.builder()
+            .uid(BUYER_MAKER)
+            .currency(CURRENCY_BTC.getId())
+            .amount(1 * CURRENCY_BTC.getNUnits())
+            .transactionId(2001L)
+            .build());
+
+    api.submitCommandAsync(
+        ApiAdjustUserBalance.builder()
+            .uid(SELLER_TAKER)
+            .currency(CURRENCY_LTC.getId())
+            .amount(1 * CURRENCY_LTC.getNUnits()) // in litoshi
+            .transactionId(2002L)
+            .build());
+
+    // ORDERS
+    BigDecimal sizeInput = new BigDecimal("1");
+    BigDecimal priceInput = new BigDecimal("0.003");
+    BigDecimal totalInput = null;
+    BigDecimal makerFee = priceInput.multiply(new BigDecimal(TEST_FEE_ZONE.makerFeeFraction));
+
+    // conversion
+    long pricePerLotScaled = Convert.priceToPricePerLot(PAIR_LTC_BTC, priceInput);
+    long sizeLots = Convert.sizeToLots(PAIR_LTC_BTC, sizeInput);
+    long totalPriceScaled = Convert.calcTotalScaled(PAIR_LTC_BTC, sizeLots, pricePerLotScaled);
+
+    long makerFeesExpected = Math.round(totalPriceScaled * TEST_FEE_ZONE.makerFeeFraction);
+
+    CompletableFuture<CommandResultCode> future =
+        api.submitCommandAsync(
+            ApiPlaceOrder.builder()
+                .uid(BUYER_MAKER)
+                .orderId(5001L)
+                .price(pricePerLotScaled)
+                .reservePrice(pricePerLotScaled)
+                .size(sizeLots)
+                .action(OrderAction.BID)
+                .orderType(OrderType.GTC)
+                .symbol(PAIR_LTC_BTC.getId())
+                .build());
+
+    log.info("ApiPlaceOrder 1 result: " + future.get());
+
+    // input, known price and size
+    sizeInput = null;
+    priceInput = new BigDecimal("0.003");
+    totalInput = new BigDecimal("0.003");
+    BigDecimal takerFee = priceInput.multiply(new BigDecimal(TEST_FEE_ZONE.takerFeeFraction));
+
+    pricePerLotScaled = Convert.priceToPricePerLot(PAIR_LTC_BTC, priceInput);
+    totalPriceScaled =
+        totalInput.multiply(new BigDecimal(PAIR_LTC_BTC.getQuote().getNUnits())).longValue();
+    sizeLots = totalPriceScaled / pricePerLotScaled;
+
+    long takerFeesExpected = Math.round(totalPriceScaled * TEST_FEE_ZONE.takerFeeFraction);
+
+    future =
+        api.submitCommandAsync(
+            ApiPlaceOrder.builder()
+                .uid(SELLER_TAKER)
+                .orderId(5002L)
+                .price(pricePerLotScaled)
+                .size(sizeLots)
+                .action(OrderAction.ASK)
+                .orderType(OrderType.IOC)
+                .symbol(PAIR_LTC_BTC.getId())
+                .build());
+
+    log.info("ApiPlaceOrder 2 result: " + future.get());
+
+    // GET DATA
+    // request order book
+    CompletableFuture<L2MarketData> orderBookFuture1 =
+        api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
+    log.info("ApiOrderBookRequest result: " + orderBookFuture1.get());
+
+    Future<SingleUserReportResult> u1Report2 =
+        api.processReport(new SingleUserReportQuery(BUYER_MAKER), 0);
+    log.info(u1Report2.get().toString());
+
+    Future<SingleUserReportResult> u2Report2 =
+        api.processReport(new SingleUserReportQuery(SELLER_TAKER), 0);
+    log.info(u2Report2.get().toString());
+
+    Future<TotalCurrencyBalanceReportResult> balancesReport =
+        api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
+    log.info(balancesReport.get().toString());
+
+    ec.shutdown();
+
+    long feesScaledExpected = makerFeesExpected + takerFeesExpected;
+    long feesScaledActual = balancesReport.get().getFees().get(CURRENCY_BTC.getId());
+
+    BigDecimal feesExpected = makerFee.add(takerFee).round(new MathContext(10));
+    BigDecimal feesActual = BigDecimal.valueOf(
+        (double) feesScaledActual / CURRENCY_BTC.getNUnits());
+
+    assertEquals(feesScaledExpected, feesScaledActual);
+    assertEquals(0, feesExpected.compareTo(feesActual));
+  }
 }
