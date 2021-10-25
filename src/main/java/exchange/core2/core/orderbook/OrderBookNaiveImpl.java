@@ -149,7 +149,8 @@ public final class OrderBookNaiveImpl implements IOrderBook {
             action,
             cmd.uid,
             cmd.getFeeZone(),
-            cmd.timestamp);
+            cmd.timestamp,
+            cmd.hidden);
 
     getBucketsByAction(action).computeIfAbsent(price, OrdersBucketNaive::new).put(orderRecord);
 
@@ -383,7 +384,7 @@ public final class OrderBookNaiveImpl implements IOrderBook {
     } else {
 
       order.size -= reduceBy;
-      ordersBucket.reduceSize(reduceBy);
+      ordersBucket.reduceSize(reduceBy, order.isHidden());
     }
 
     // send reduce event
@@ -476,7 +477,7 @@ public final class OrderBookNaiveImpl implements IOrderBook {
   }
 
   @Override
-  public void fillAsks(final int size, L2MarketData data) {
+  public void fillAsks(final int size, L2MarketData data, boolean visibleOnly) {
     if (size == 0) {
       data.askSize = 0;
       return;
@@ -484,9 +485,19 @@ public final class OrderBookNaiveImpl implements IOrderBook {
 
     int i = 0;
     for (OrdersBucketNaive bucket : askBuckets.values()) {
-      data.askPrices[i] = bucket.getPrice();
-      data.askVolumes[i] = bucket.getTotalVolume();
-      data.askOrders[i] = bucket.getNumOrders();
+      if (visibleOnly) {
+        data.askVolumes[i] = bucket.getTotalVolumeVisible();
+        // skip empty
+        if (data.askVolumes[i] == 0) {
+          continue;
+        }
+        data.askPrices[i] = bucket.getPrice();
+        data.askOrders[i] = bucket.getNumOrdersVisible();
+      } else {
+        data.askPrices[i] = bucket.getPrice();
+        data.askVolumes[i] = bucket.getTotalVolume();
+        data.askOrders[i] = bucket.getNumOrders();
+      }
       if (++i == size) {
         break;
       }
@@ -495,7 +506,7 @@ public final class OrderBookNaiveImpl implements IOrderBook {
   }
 
   @Override
-  public void fillBids(final int size, L2MarketData data) {
+  public void fillBids(final int size, L2MarketData data, boolean visibleOnly) {
     if (size == 0) {
       data.bidSize = 0;
       return;
@@ -503,9 +514,19 @@ public final class OrderBookNaiveImpl implements IOrderBook {
 
     int i = 0;
     for (OrdersBucketNaive bucket : bidBuckets.values()) {
-      data.bidPrices[i] = bucket.getPrice();
-      data.bidVolumes[i] = bucket.getTotalVolume();
-      data.bidOrders[i] = bucket.getNumOrders();
+      if (visibleOnly) {
+        data.bidVolumes[i] = bucket.getTotalVolumeVisible();
+        // skip empty
+        if (data.bidVolumes[i] == 0) {
+          continue;
+        }
+        data.bidPrices[i] = bucket.getPrice();
+        data.bidOrders[i] = bucket.getNumOrdersVisible();
+      } else {
+        data.bidPrices[i] = bucket.getPrice();
+        data.bidVolumes[i] = bucket.getTotalVolume();
+        data.bidOrders[i] = bucket.getNumOrders();
+      }
       if (++i == size) {
         break;
       }

@@ -63,7 +63,7 @@ public final class UserProfileService implements WriteBytesMarshallable, StateHa
 
     public UserProfile getUserProfileOrAddSuspended(long uid) {
         return userProfiles.getIfAbsentPut(uid, () -> new UserProfile(uid, UserStatus.SUSPENDED,
-            FeeZone.NONE));
+            FeeZone.ZERO));
     }
 
 

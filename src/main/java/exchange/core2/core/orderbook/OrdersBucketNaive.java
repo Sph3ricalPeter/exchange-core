@@ -44,16 +44,21 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
     @Getter
     private long totalVolume;
 
+    @Getter
+    private long totalVolumeVisible;
+
     public OrdersBucketNaive(final long price) {
         this.price = price;
         this.entries = new LinkedHashMap<>();
         this.totalVolume = 0;
+        this.totalVolumeVisible = 0;
     }
 
     public OrdersBucketNaive(BytesIn bytes) {
         this.price = bytes.readLong();
         this.entries = SerializationUtils.readLongMap(bytes, LinkedHashMap::new, Order::new);
         this.totalVolume = bytes.readLong();
+        this.totalVolumeVisible = bytes.readLong();
     }
 
     /**
@@ -64,6 +69,10 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
     public void put(Order order) {
         entries.put(order.orderId, order);
         totalVolume += order.size - order.filled;
+        log.info("order {} hidden: {} ", order, order.isHidden());
+        if (!order.isHidden()) {
+            totalVolumeVisible += order.size - order.filled;
+        }
     }
 
     /**
@@ -83,6 +92,9 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
         entries.remove(orderId);
 
         totalVolume -= order.size - order.filled;
+        if (!order.isHidden()) {
+            totalVolumeVisible -= order.size - order.filled;
+        }
         return order;
     }
 
@@ -154,14 +166,22 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
         return entries.size();
     }
 
+    // TODO: probably slow
+    public int getNumOrdersVisible() {
+        return entries.values().stream().filter(order -> !order.hidden).toArray().length;
+    }
+
     /**
      * Reduce size of the order
      *
      * @param reduceSize - size to reduce (difference)
      */
-    public void reduceSize(long reduceSize) {
+    public void reduceSize(long reduceSize, boolean isHidden) {
 
         totalVolume -= reduceSize;
+        if (!isHidden) {
+            totalVolumeVisible -= reduceSize;
+        }
     }
 
     public void validate() {

@@ -45,6 +45,9 @@ public final class OrderCommand implements IOrder {
     // new orders INPUT - reserved price for fast moves of GTC bid orders in exchange mode
     public long reserveBidPrice;
 
+    @Getter
+    public boolean hidden;
+
     // required for PLACE_ORDER only;
     // for CANCEL/MOVE contains original order action (filled by orderbook)
     @Getter
@@ -81,7 +84,7 @@ public final class OrderCommand implements IOrder {
     //public long matcherEventSequence;
     // ---- potential false sharing section ------
 
-    public static OrderCommand newOrder(OrderType orderType, long orderId, long uid, long price, long reserveBidPrice, long size, OrderAction action) {
+    public static OrderCommand newOrder(OrderType orderType, long orderId, long uid, long price, long reserveBidPrice, long size, OrderAction action, boolean hidden) {
         OrderCommand cmd = new OrderCommand();
         cmd.command = OrderCommandType.PLACE_ORDER;
         cmd.orderId = orderId;
@@ -92,6 +95,7 @@ public final class OrderCommand implements IOrder {
         cmd.action = action;
         cmd.orderType = orderType;
         cmd.resultCode = CommandResultCode.VALID_FOR_MATCHING_ENGINE;
+        cmd.hidden = hidden;
         return cmd;
     }
 
@@ -179,6 +183,7 @@ public final class OrderCommand implements IOrder {
         cmd2.size = this.size;
         cmd2.action = this.action;
         cmd2.orderType = this.orderType;
+        cmd2.hidden = this.hidden;
     }
 
     // slow - testing only

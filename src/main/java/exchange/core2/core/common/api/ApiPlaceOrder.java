@@ -15,7 +15,6 @@
  */
 package exchange.core2.core.common.api;
 
-
 import exchange.core2.core.common.OrderAction;
 import exchange.core2.core.common.OrderType;
 import lombok.Builder;
@@ -27,21 +26,29 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public final class ApiPlaceOrder extends ApiCommand {
 
-    public final long price;
-    public final long size;
-    public final long orderId;
-    public final OrderAction action;
-    public final OrderType orderType;
-    public final long uid;
-    public final int symbol;
-    public final int userCookie;
-    public final long reservePrice;
+  public final long price;
+  public final long size;
+  public final long orderId;
+  public final OrderAction action;
+  public final OrderType orderType;
+  public final long uid;
+  public final int symbol;
+  public final int userCookie;
+  public final long reservePrice;
+  public final boolean hidden;
 
-    @Override
-    public String toString() {
-        return "[ADD o" + orderId + " s" + symbol + " u" + uid + " " + (action == OrderAction.ASK ? 'A' : 'B')
-                + ":" + (orderType == OrderType.IOC ? "IOC" : "GTC")
-                + ":" + price + ":" + size + "]";
-        //(reservePrice != 0 ? ("(R" + reservePrice + ")") : "") +
-    }
+  @Override
+  public String toString() {
+    return String.format(
+        "[ADD o%d s%d u%d %s:%s:%d:%d%s]",
+        orderId,
+        symbol,
+        uid,
+        (action == OrderAction.ASK ? 'A' : 'B'),
+        (orderType == OrderType.IOC ? "IOC" : "GTC"),
+        price,
+        size,
+        (hidden ? " h" : ""));
+    // (reservePrice != 0 ? ("(R" + reservePrice + ")") : "") +
+  }
 }

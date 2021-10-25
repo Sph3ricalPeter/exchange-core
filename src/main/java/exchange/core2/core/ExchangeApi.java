@@ -437,6 +437,7 @@ public final class ExchangeApi {
         cmd.uid = api.uid;
         cmd.userCookie = api.userCookie;
         cmd.resultCode = CommandResultCode.NEW;
+        cmd.hidden = api.hidden;
     };
 
     private static final EventTranslatorOneArg<OrderCommand, ApiMoveOrder> MOVE_ORDER_TRANSLATOR = (cmd, seq, api) -> {

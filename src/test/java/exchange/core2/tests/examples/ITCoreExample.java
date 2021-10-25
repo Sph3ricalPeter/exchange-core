@@ -108,12 +108,12 @@ public class ITCoreExample {
     log.info("BatchAddSymbolsCommand result: " + future.get());
 
     // create user uid=301
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).feeZone(FeeZone.NONE).build());
+    future = api.submitCommandAsync(ApiAddUser.builder().uid(301L).feeZone(FeeZone.ZERO).build());
 
     log.info("ApiAddUser 1 result: " + future.get());
 
     // create user uid=302
-    future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).feeZone(FeeZone.NONE).build());
+    future = api.submitCommandAsync(ApiAddUser.builder().uid(302L).feeZone(FeeZone.ZERO).build());
 
     log.info("ApiAddUser 2 result: " + future.get());
 

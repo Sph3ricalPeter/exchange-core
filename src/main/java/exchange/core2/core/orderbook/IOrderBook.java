@@ -144,8 +144,21 @@ public interface IOrderBook extends WriteBytesMarshallable, StateHash {
         final int asksSize = getTotalAskBuckets(size);
         final int bidsSize = getTotalBidBuckets(size);
         final L2MarketData data = new L2MarketData(asksSize, bidsSize);
-        fillAsks(asksSize, data);
-        fillBids(bidsSize, data);
+        fillAsks(asksSize, data, false);
+        fillBids(bidsSize, data, false);
+        return data;
+    }
+
+    default L2MarketData getL2SnapshotVisible() {
+        return getL2SnapshotVisible(Integer.MAX_VALUE);
+    }
+
+    default L2MarketData getL2SnapshotVisible(final int size) {
+        final int asksSize = getTotalAskBuckets(size);
+        final int bidsSize = getTotalBidBuckets(size);
+        final L2MarketData data = new L2MarketData(asksSize, bidsSize);
+        fillAsks(asksSize, data, true);
+        fillBids(bidsSize, data, true);
         return data;
     }
 
@@ -153,20 +166,9 @@ public interface IOrderBook extends WriteBytesMarshallable, StateHash {
         return getL2MarketDataSnapshot(Integer.MAX_VALUE);
     }
 
-    /**
-     * Request to publish L2 market data into outgoing disruptor message
-     *
-     * @param data - pre-allocated object from ring buffer
-     */
-    default void publishL2MarketDataSnapshot(L2MarketData data) {
-        int size = L2MarketData.L2_SIZE;
-        fillAsks(size, data);
-        fillBids(size, data);
-    }
+    void fillAsks(int size, L2MarketData data, boolean visibleOnly);
 
-    void fillAsks(int size, L2MarketData data);
-
-    void fillBids(int size, L2MarketData data);
+    void fillBids(int size, L2MarketData data, boolean visibleOnly);
 
     int getTotalAskBuckets(int limit);
 
@@ -200,7 +202,7 @@ public interface IOrderBook extends WriteBytesMarshallable, StateHash {
 
         } else if (commandType == OrderCommandType.ORDER_BOOK_REQUEST) {
             int size = (int) cmd.size;
-            cmd.marketData = orderBook.getL2MarketDataSnapshot(size >= 0 ? size : Integer.MAX_VALUE);
+            cmd.marketData = orderBook.getL2SnapshotVisible(size >= 0 ? size : Integer.MAX_VALUE);
             return CommandResultCode.SUCCESS;
 
         } else {

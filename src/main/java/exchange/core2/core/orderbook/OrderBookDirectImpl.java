@@ -784,7 +784,8 @@ public final class OrderBookDirectImpl implements IOrderBook {
   }
 
   @Override
-  public void fillAsks(final int size, L2MarketData data) {
+  public void fillAsks(final int size, L2MarketData data, boolean visibleOnly) {
+    // TODO: exclude hidden orders
     data.askSize = 0;
     askPriceBuckets.forEach(
         (p, bucket) -> {
@@ -797,7 +798,8 @@ public final class OrderBookDirectImpl implements IOrderBook {
   }
 
   @Override
-  public void fillBids(final int size, L2MarketData data) {
+  public void fillBids(final int size, L2MarketData data, boolean visibleOnly) {
+    // TODO: exclude hidden orders
     data.bidSize = 0;
     bidPriceBuckets.forEachDesc(
         (p, bucket) -> {

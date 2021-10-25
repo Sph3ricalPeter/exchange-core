@@ -56,6 +56,8 @@ public final class Order implements WriteBytesMarshallable, IOrder {
 
   @Getter public long timestamp;
 
+  @Getter public boolean hidden;
+
   //    public int userCookie;
 
   public Order(BytesIn bytes) {
@@ -69,6 +71,7 @@ public final class Order implements WriteBytesMarshallable, IOrder {
     this.uid = bytes.readLong(); // uid
     this.feeZone = new FeeZone(bytes);
     this.timestamp = bytes.readLong(); // timestamp
+    this.hidden = bytes.readBoolean();
     //        this.userCookie = bytes.readInt();  // userCookie
 
   }
@@ -84,6 +87,7 @@ public final class Order implements WriteBytesMarshallable, IOrder {
     bytes.writeLong(uid);
     feeZone.writeMarshallable(bytes);
     bytes.writeLong(timestamp);
+    bytes.writeBoolean(hidden);
     //        bytes.writeInt(userCookie);
   }
 
@@ -101,6 +105,7 @@ public final class Order implements WriteBytesMarshallable, IOrder {
         // + " C" + userCookie
         + " U"
         + uid
+        + (hidden ? " H" : "")
         + "]";
   }
 
@@ -115,7 +120,8 @@ public final class Order implements WriteBytesMarshallable, IOrder {
         filled,
         // userCookie, timestamp
         uid,
-        feeZone);
+        feeZone,
+        hidden);
   }
 
   /** timestamp is not included into hashCode() and equals() for repeatable results */
@@ -135,7 +141,8 @@ public final class Order implements WriteBytesMarshallable, IOrder {
         && reserveBidPrice == other.reserveBidPrice
         && filled == other.filled
         && uid == other.uid
-        && feeZone == other.feeZone;
+        && feeZone == other.feeZone
+        && hidden == other.hidden;
   }
 
   @Override

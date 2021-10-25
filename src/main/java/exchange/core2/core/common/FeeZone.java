@@ -14,7 +14,7 @@ import net.openhft.chronicle.bytes.WriteBytesMarshallable;
 public class FeeZone implements WriteBytesMarshallable, StateHash {
 
   // TODO: this is for testing purposes only
-  public static final FeeZone NONE = FeeZone.fromPercent(0, 0);
+  public static final FeeZone ZERO = FeeZone.fromPercent(0, 0);
 
   public double makerFeeFraction;
   public double takerFeeFraction;
