@@ -61,6 +61,7 @@ public final class OrderBookEventsHelper {
         event.matchedOrderId = matchingOrder.getOrderId();
         event.matchedOrderUid = matchingOrder.getUid();
         event.matchedOrderCompleted = makerCompleted;
+        event.matchedOrderHidden = matchingOrder.isHidden();
 
         event.price = matchingOrder.getPrice();
         event.size = size;

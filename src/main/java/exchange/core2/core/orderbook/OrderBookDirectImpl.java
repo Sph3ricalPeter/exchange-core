@@ -855,6 +855,8 @@ public final class OrderBookDirectImpl implements IOrderBook {
 
     @Getter public long timestamp;
 
+    @Getter public boolean hidden;
+
     // fast orders structure
 
     Bucket parent;

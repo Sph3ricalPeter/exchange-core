@@ -18,6 +18,8 @@ import exchange.core2.core.common.api.binary.BatchAddSymbolsCommand;
 import exchange.core2.core.common.api.binary.BatchUpdateUserFeeZones;
 import exchange.core2.core.common.api.reports.SingleUserReportQuery;
 import exchange.core2.core.common.api.reports.SingleUserReportResult;
+import exchange.core2.core.common.api.reports.TotalCurrencyBalanceReportQuery;
+import exchange.core2.core.common.api.reports.TotalCurrencyBalanceReportResult;
 import exchange.core2.core.common.cmd.CommandResultCode;
 import exchange.core2.core.common.config.ExchangeConfiguration;
 import exchange.core2.core.common.config.InitialStateConfiguration;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.collections.impl.map.mutable.primitive.IntLongHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
@@ -72,7 +75,7 @@ public class ITCoreHiddenOrderExample {
         ExchangeConfiguration.builder()
             .ordersProcessingCfg(OrdersProcessingConfiguration.DEFAULT)
             .initStateCfg(InitialStateConfiguration.cleanStart("MY_EXCHANGE"))
-            .performanceCfg(PerformanceConfiguration.DEFAULT) // balanced perf. config, naive impl
+            .performanceCfg(PerformanceConfiguration.DEFAULT)
             .reportsQueriesCfg(ReportsQueriesConfiguration.DEFAULT)
             .loggingCfg(
                 LoggingConfiguration.builder()
@@ -105,24 +108,28 @@ public class ITCoreHiddenOrderExample {
     // ACCOUNTS & BALANCES
     // we can use batch add users to efficiently init all users and their balance
     LongObjectHashMap<IntLongHashMap> userAccounts = new LongObjectHashMap<>();
-    userAccounts.put(301L, new IntLongHashMap());
+    userAccounts.put(
+        301L,
+        IntLongHashMap.newWithKeysValues(CURRENCY_BTC.getId(), 3 * CURRENCY_BTC.getNUnits(), CURRENCY_LTC.getId(), 0));
+    userAccounts.put(
+        302L,
+        IntLongHashMap.newWithKeysValues(CURRENCY_BTC.getId(), 0, CURRENCY_LTC.getId(), 3 * CURRENCY_LTC.getNUnits()));
 
-    CompletableFuture<CommandResultCode> future = api.submitBinaryDataAsync(
-        new BatchAddAccountsCommand(userAccounts, FeeZone.ZERO));
+    CompletableFuture<CommandResultCode> future =
+        api.submitBinaryDataAsync(
+            new BatchAddAccountsCommand(userAccounts, FeeZone.fromPercent(0.08, 0.2)));
 
-    // DEPOSITS
-    future = api.submitCommandAsync(
-        ApiAdjustUserBalance.builder()
-            .uid(301L)
-            .currency(CURRENCY_BTC.getId())
-            .amount(1 * CURRENCY_BTC.getNUnits())
-            .transactionId(2001L)
-            .build());
+    Future<SingleUserReportResult> u1Report =
+        api.processReport(new SingleUserReportQuery(301L), 0);
+    log.info(u1Report.get().toString());
+
+    Future<SingleUserReportResult> u2Report =
+        api.processReport(new SingleUserReportQuery(302L), 0);
+    log.info(u2Report.get().toString());
 
     // ORDERS
-    BigDecimal sizeInput = new BigDecimal("1");
+    BigDecimal sizeInput = new BigDecimal("2");
     BigDecimal priceInput = new BigDecimal("0.003");
-    BigDecimal totalInput = null;
 
     // conversion
     long pricePerLotScaled = Convert.priceToPricePerLot(PAIR_LTC_BTC, priceInput);
@@ -134,24 +141,28 @@ public class ITCoreHiddenOrderExample {
         sizeLots,
         totalPriceScaled);
 
+    // maker sell full size but hidden, pays taker fee for all of it
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
-                .uid(301L)
+                .uid(302L)
                 .orderId(5001L)
                 .price(pricePerLotScaled)
                 .reservePrice(pricePerLotScaled)
                 .size(sizeLots)
-                .action(OrderAction.BID)
+                .action(OrderAction.ASK)
                 .orderType(OrderType.GTC)
                 .symbol(PAIR_LTC_BTC.getId())
-                .hidden(true) // order is hidden, shouldn't appear in order book
+                .hidden(false) // order is not hidden, should appear in OB
                 .build());
 
-    CompletableFuture<L2MarketData> orderBookFuture1 =
-        api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
-    log.info("ApiOrderBookRequest result: " + orderBookFuture1.get());
+    future.get();
 
+    CompletableFuture<L2MarketData> orderBookFuture =
+        api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
+    log.info("ApiOrderBookRequest result: " + orderBookFuture.get());
+
+    // taker buy half size, pays taker fee
     future =
         api.submitCommandAsync(
             ApiPlaceOrder.builder()
@@ -159,17 +170,71 @@ public class ITCoreHiddenOrderExample {
                 .orderId(5002L)
                 .price(pricePerLotScaled)
                 .reservePrice(pricePerLotScaled)
+                .size(Math.round(sizeLots / 2D))
+                .action(OrderAction.BID)
+                .orderType(OrderType.GTC)
+                .symbol(PAIR_LTC_BTC.getId())
+                .hidden(true) // order is hidden, shouldn't appear in order book
+                .build());
+
+    future.get();
+
+    orderBookFuture = api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
+    log.info("ApiOrderBookRequest result: " + orderBookFuture.get());
+
+    // taker buy for half size, maker for other half
+    // pays taker fee for everything because its hidden order
+    future =
+        api.submitCommandAsync(
+            ApiPlaceOrder.builder()
+                .uid(301L)
+                .orderId(5003L)
+                .price(pricePerLotScaled)
+                .reservePrice(pricePerLotScaled)
                 .size(sizeLots)
                 .action(OrderAction.BID)
                 .orderType(OrderType.GTC)
                 .symbol(PAIR_LTC_BTC.getId())
-                .hidden(false) // order is visible, should appear in OB
+                .hidden(false)
                 .build());
 
-    CompletableFuture<L2MarketData> orderBookFuture2 =
-        api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
-    log.info("ApiOrderBookRequest result: " + orderBookFuture2.get());
+    future.get();
 
-    exchangeCore.shutdown();
+    orderBookFuture = api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
+    log.info("ApiOrderBookRequest result: " + orderBookFuture.get());
+
+    // taker sell half size, pays taker fee
+    future =
+        api.submitCommandAsync(
+            ApiPlaceOrder.builder()
+                .uid(302L)
+                .orderId(5004L)
+                .price(pricePerLotScaled)
+                .reservePrice(pricePerLotScaled)
+                .size(Math.round(sizeLots / 2D))
+                .action(OrderAction.ASK)
+                .orderType(OrderType.GTC)
+                .symbol(PAIR_LTC_BTC.getId())
+                .hidden(false) // order is not hidden, should appear in OB
+                .build());
+
+    future.get();
+
+    orderBookFuture = api.requestOrderBookAsync(PAIR_LTC_BTC.getId(), 10);
+    log.info("ApiOrderBookRequest result: " + orderBookFuture.get());
+
+    u1Report =
+        api.processReport(new SingleUserReportQuery(301L), 0);
+    log.info(u1Report.get().toString());
+
+    u2Report =
+        api.processReport(new SingleUserReportQuery(302L), 0);
+    log.info(u2Report.get().toString());
+
+    Future<TotalCurrencyBalanceReportResult> balancesReportBeforeSnapshot =
+        api.processReport(new TotalCurrencyBalanceReportQuery(), 0);
+    log.info(balancesReportBeforeSnapshot.get().toString());
+
+    // exchangeCore.shutdown();
   }
 }

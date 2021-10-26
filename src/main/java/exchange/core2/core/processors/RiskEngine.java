@@ -743,8 +743,6 @@ public final class RiskEngine implements WriteBytesMarshallable {
   private void handleMatcherEventsExchangeSell(
       MatcherTradeEvent ev, final CoreSymbolSpecification spec, final UserProfile taker) {
 
-    // log.debug("TRADE EXCH SELL {}", ev);
-
     long takerSizeForThisHandler = 0L;
     long makerSizeForThisHandler = 0L;
 
@@ -772,18 +770,37 @@ public final class RiskEngine implements WriteBytesMarshallable {
 
         // buying, use bidderHoldPrice to calculate released amount based on price difference
         final long priceDiff = ev.bidderHoldPrice - ev.price;
-        /* TODO: something is not right here, maker pays taker fee even though he placed the order
-         without it being executed immediately */
-        // that happens because priceDiff affects % fee, which it probably shouldn't
-        final long amountDiffToReleaseInQuoteCurrency =
-            CoreArithmeticUtils.calculateAmountBidReleaseCorrMaker(
-                size, price, priceDiff, spec, maker.feeZone);
-        maker.accounts.addToValue(quoteCurrency, amountDiffToReleaseInQuoteCurrency);
-        log.info("release {} to maker {}", amountDiffToReleaseInQuoteCurrency, maker.uid);
 
+        // buying maker spent taker fee
+        // if matched maker order was hidden, maker should pay taker fee
+        long amountDiffToReleaseInQuoteCurrency;
         // we need to calculate fee separately for each maker, as his fee zone is specific to him
-        long makerFee =
-            Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK);
+        long makerFee;
+        if (!ev.matchedOrderHidden) {
+          amountDiffToReleaseInQuoteCurrency =
+              CoreArithmeticUtils.calculateAmountBidReleaseCorrMaker(
+                  size, price, priceDiff, spec, maker.feeZone);
+          makerFee = Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK);
+          if (logDebug)
+            log.info(
+                "matched buying maker {}'s order {} is visible, maker pays maker fee, release price and fee diff: {}",
+                maker.uid,
+                ev.matchedOrderId,
+                amountDiffToReleaseInQuoteCurrency);
+
+        } else {
+          amountDiffToReleaseInQuoteCurrency =
+              CoreArithmeticUtils.calculateAmountBid(size, priceDiff, spec);
+          makerFee = Math.round(maker.feeZone.takerFeeFraction * size * price * spec.quoteScaleK);
+          if (logDebug)
+            log.info(
+                "matched buying maker {}'s order {} is hidden, maker pays taker fee, release only price diff: {}",
+                maker.uid,
+                ev.matchedOrderId,
+                amountDiffToReleaseInQuoteCurrency);
+        }
+        maker.accounts.addToValue(quoteCurrency, amountDiffToReleaseInQuoteCurrency);
+
         makerFeesTotal += makerFee;
         log.info("maker {} pays {} in fees", maker.uid, makerFee);
 
@@ -811,10 +828,10 @@ public final class RiskEngine implements WriteBytesMarshallable {
         takerFeesTotal +=
             Math.round(
                 taker.feeZone.takerFeeFraction * takerSizePriceForThisHandler * spec.quoteScaleK);
-        log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
+        if (logDebug) log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
       }
 
-      log.info("makers paid {} in fees in total", makerFeesTotal);
+      if (logDebug) log.info("makers paid {} in fees in total", makerFeesTotal);
 
       makerFeesTotal += spec.makerBaseFee * makerSizeForThisHandler;
 
@@ -859,9 +876,30 @@ public final class RiskEngine implements WriteBytesMarshallable {
         final long gainedAmountInQuoteCurrency =
             CoreArithmeticUtils.calculateAmountBid(size, price, spec);
 
-        final long makerFee =
-            Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK)
-                + spec.makerBaseFee * size;
+        long makerFee;
+        // matched order is hidden, maker pays taker fee
+        if (ev.matchedOrderHidden) {
+          makerFee =
+              Math.round(maker.feeZone.takerFeeFraction * size * price * spec.quoteScaleK)
+                  + spec.takerBaseFee * size;
+          if (logDebug)
+            log.info(
+                "matched selling maker {}'s order {} is hidden, maker pays taker fee {}",
+                maker.uid,
+                ev.matchedOrderId,
+                makerFee);
+        } else {
+          makerFee =
+              Math.round(maker.feeZone.makerFeeFraction * size * price * spec.quoteScaleK)
+                  + spec.makerBaseFee * size;
+          if (logDebug)
+            log.info(
+                "matched selling maker {}'s order {} is visible, maker pays maker fee {}",
+                maker.uid,
+                ev.matchedOrderId,
+                makerFee);
+        }
+
         makerFeesTotal += makerFee;
 
         maker.accounts.addToValue(quoteCurrency, gainedAmountInQuoteCurrency - makerFee);
@@ -892,10 +930,10 @@ public final class RiskEngine implements WriteBytesMarshallable {
       if (taker != null) {
         takerFeesTotal +=
             Math.round(taker.feeZone.takerFeeFraction * takerSizePriceSum * spec.quoteScaleK);
-        log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
+        if (logDebug) log.info("taker {} pays {} in fees in total", taker.uid, takerFeesTotal);
       }
 
-      log.info("makers paid {} in fees in total", makerFeesTotal);
+      if (logDebug) log.info("makers paid {} in fees in total", makerFeesTotal);
 
       fees.addToValue(quoteCurrency, makerFeesTotal + takerFeesTotal);
     }

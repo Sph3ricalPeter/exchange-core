@@ -17,21 +17,23 @@ package exchange.core2.core.common;
 
 public interface IOrder extends StateHash {
 
-    long getPrice();
+  long getPrice();
 
-    long getSize();
+  long getSize();
 
-    long getFilled();
+  long getFilled();
 
-    long getUid();
+  long getUid();
 
-    OrderAction getAction();
+  OrderAction getAction();
 
-    long getOrderId();
+  long getOrderId();
 
-    long getTimestamp();
+  long getTimestamp();
 
-    long getReserveBidPrice();
+  long getReserveBidPrice();
 
-    FeeZone getFeeZone();
+  FeeZone getFeeZone();
+
+  boolean isHidden();
 }

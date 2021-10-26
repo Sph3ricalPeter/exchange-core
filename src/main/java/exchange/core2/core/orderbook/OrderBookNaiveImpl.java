@@ -398,7 +398,6 @@ public final class OrderBookNaiveImpl implements IOrderBook {
 
   @Override
   public CommandResultCode moveOrder(OrderCommand cmd) {
-
     final long orderId = cmd.orderId;
     final long newPrice = cmd.price;
 
