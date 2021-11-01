@@ -472,8 +472,6 @@ public final class RiskEngine implements WriteBytesMarshallable {
                 size, cmd.price, spec, userProfile.feeZone);
         if (logDebug)
           log.debug(
-              // Math.round((1 + userProfile.feeZone.takerFeeFraction) * (budgetInSteps *
-              // spec.quoteScaleK + size * spec.takerBaseFee));
               "hold amount budget buy {} = {} * ({} * {} + {} * {})",
               cmd.price,
               1 + userProfile.feeZone.takerFeeFraction,

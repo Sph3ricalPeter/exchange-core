@@ -228,6 +228,7 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
         bytes.writeLong(price);
         SerializationUtils.marshallLongMap(entries, bytes);
         bytes.writeLong(totalVolume);
+        bytes.writeLong(totalVolumeVisible);
     }
 
     @Override

@@ -41,13 +41,11 @@ public final class CoreArithmeticUtils {
 
     public static long calculateAmountBidReleaseCorrMaker(long size, long price, long priceDiff, CoreSymbolSpecification spec, FeeZone feeZone) {
         log.info("calculateAmountBidReleaseCorrMaker: {} * (({} - {}) * {} * {} + ({} - {})))", size, feeZone.takerFeeFraction, feeZone.makerFeeFraction, priceDiff, spec.quoteScaleK, spec.takerBaseFee, spec.makerBaseFee);
-        // TODO: if price diff is 0, fees from zone don't apply at all
         return Math.round(size * ((feeZone.takerFeeFraction - feeZone.makerFeeFraction) * price * spec.quoteScaleK + priceDiff * spec.quoteScaleK + (spec.takerBaseFee - spec.makerBaseFee)));
     }
 
-    // TODO: budget? will not be used most likely ...
+    // will not be used most likely ...
     public static long calculateAmountBidTakerFeeForBudget(long size, long budgetInSteps, CoreSymbolSpecification spec, FeeZone feeZone) {
-        // calculate % fee from budget but base fee from size?
         return Math.round((1 + feeZone.takerFeeFraction) * budgetInSteps * spec.quoteScaleK + size * spec.takerBaseFee);
     }
 
