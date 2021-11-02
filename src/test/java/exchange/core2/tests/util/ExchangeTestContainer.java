@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 import exchange.core2.core.ExchangeApi;
 import exchange.core2.core.ExchangeCore;
 import exchange.core2.core.common.CoreSymbolSpecification;
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.SymbolType;
 import exchange.core2.core.common.api.*;
@@ -178,14 +179,14 @@ public final class ExchangeTestContainer implements AutoCloseable {
     }
 
     public void initBasicUser(long uid) {
-        assertThat(api.submitCommandAsync(ApiAddUser.builder().uid(uid).build()).join(), Is.is(CommandResultCode.SUCCESS));
+        assertThat(api.submitCommandAsync(ApiAddUser.builder().uid(uid).feeZone(FeeZone.ZERO).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(1L).amount(10_000_00L).currency(TestConstants.CURRENECY_USD).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(2L).amount(1_0000_0000L).currency(TestConstants.CURRENECY_XBT).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(3L).amount(1_0000_0000L).currency(TestConstants.CURRENECY_ETH).build()).join(), Is.is(CommandResultCode.SUCCESS));
     }
 
     public void initFeeUser(long uid) {
-        assertThat(api.submitCommandAsync(ApiAddUser.builder().uid(uid).build()).join(), Is.is(CommandResultCode.SUCCESS));
+        assertThat(api.submitCommandAsync(ApiAddUser.builder().uid(uid).feeZone(FeeZone.ZERO).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(1L).amount(10_000_00L).currency(TestConstants.CURRENECY_USD).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(2L).amount(10_000_000L).currency(TestConstants.CURRENECY_JPY).build()).join(), Is.is(CommandResultCode.SUCCESS));
         assertThat(api.submitCommandAsync(ApiAdjustUserBalance.builder().uid(uid).transactionId(3L).amount(1_0000_0000L).currency(TestConstants.CURRENECY_XBT).build()).join(), Is.is(CommandResultCode.SUCCESS));
@@ -194,7 +195,7 @@ public final class ExchangeTestContainer implements AutoCloseable {
 
     public void createUserWithMoney(long uid, int currency, long amount) {
         final List<ApiCommand> cmds = new ArrayList<>();
-        cmds.add(ApiAddUser.builder().uid(uid).build());
+        cmds.add(ApiAddUser.builder().uid(uid).feeZone(FeeZone.ZERO).build());
         cmds.add(ApiAdjustUserBalance.builder().uid(uid).transactionId(getRandomTransactionId()).amount(amount).currency(currency).build());
         api.submitCommandsSync(cmds);
     }
@@ -250,7 +251,7 @@ public final class ExchangeTestContainer implements AutoCloseable {
         final int numUsers = userCurrencies.size() - 1;
 
         IntStream.rangeClosed(1, numUsers).forEach(uid -> {
-            api.submitCommand(ApiAddUser.builder().uid(uid).build());
+            api.submitCommand(ApiAddUser.builder().uid(uid).feeZone(FeeZone.ZERO).build());
             userCurrencies.get(uid).stream().forEach(currency ->
                     api.submitCommand(ApiAdjustUserBalance.builder()
                             .uid(uid)
@@ -267,7 +268,7 @@ public final class ExchangeTestContainer implements AutoCloseable {
 
         LongStream.rangeClosed(1, numUsers)
                 .forEach(uid -> {
-                    api.submitCommand(ApiAddUser.builder().uid(uid).build());
+                    api.submitCommand(ApiAddUser.builder().uid(uid).feeZone(FeeZone.ZERO).build());
                     long transactionId = 1L;
                     for (int currency : currencies) {
                         api.submitCommand(ApiAdjustUserBalance.builder()

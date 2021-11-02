@@ -69,10 +69,10 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
     public void put(Order order) {
         entries.put(order.orderId, order);
         totalVolume += order.size - order.filled;
-        log.info("order {} hidden: {} ", order, order.isHidden());
         if (!order.isHidden()) {
             totalVolumeVisible += order.size - order.filled;
         }
+        // log.info("order added, totalVolume: {}, totalVolumeVisible: {}", totalVolume, totalVolumeVisible);
     }
 
     /**
@@ -95,6 +95,7 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
         if (!order.isHidden()) {
             totalVolumeVisible -= order.size - order.filled;
         }
+        // log.info("order removed, totalVolume: {}, totalVolumeVisible: {}", totalVolume, totalVolumeVisible);
         return order;
     }
 
@@ -134,6 +135,9 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
             order.filled += v;
             volumeToCollect -= v;
             totalVolume -= v;
+            if (!order.isHidden()) {
+                totalVolumeVisible -= v;
+            }
 
             // remove from order book filled orders
             final boolean fullMatch = order.size == order.filled;

@@ -189,6 +189,8 @@ public final class RiskEngine implements WriteBytesMarshallable {
   public boolean preProcessCommand(final long seq, final OrderCommand cmd) {
     switch (cmd.command) {
       case MOVE_ORDER:
+        cmd.resultCode = moveOrderRiskCheck(cmd);
+        return false;
       case CANCEL_ORDER:
       case REDUCE_ORDER:
       case ORDER_BOOK_REQUEST:
@@ -352,6 +354,25 @@ public final class RiskEngine implements WriteBytesMarshallable {
     return (shardMask == 0) || ((uid & shardMask) == shardId);
   }
 
+  private CommandResultCode moveOrderRiskCheck(final OrderCommand cmd) {
+    final UserProfile userProfile = userProfileService.getUserProfile(cmd.uid);
+    if (userProfile == null) {
+      cmd.resultCode = CommandResultCode.AUTH_INVALID_USER;
+      log.warn("User profile {} not found", cmd.uid);
+      return CommandResultCode.AUTH_INVALID_USER;
+    }
+
+    final FeeZone feeZone = userProfile.feeZone;
+    if (feeZone == null) {
+      log.warn("Fee zone for user {} not found", userProfile);
+      return CommandResultCode.MISSING_FEE_ZONE;
+    }
+
+    cmd.feeZone = feeZone;
+
+    return CommandResultCode.VALID_FOR_MATCHING_ENGINE;
+  }
+
   private CommandResultCode placeOrderRiskCheck(final OrderCommand cmd) {
 
     final UserProfile userProfile = userProfileService.getUserProfile(cmd.uid);
@@ -366,6 +387,8 @@ public final class RiskEngine implements WriteBytesMarshallable {
       log.warn("Fee zone for user {} not found", userProfile);
       return CommandResultCode.MISSING_FEE_ZONE;
     }
+
+    // TODO: move this to MOVE and other orders
     cmd.feeZone = feeZone; // let the command carry feeZone information to the matching engine
 
     final CoreSymbolSpecification spec =
@@ -800,7 +823,7 @@ public final class RiskEngine implements WriteBytesMarshallable {
         maker.accounts.addToValue(quoteCurrency, amountDiffToReleaseInQuoteCurrency);
 
         makerFeesTotal += makerFee;
-        log.info("maker {} pays {} in fees", maker.uid, makerFee);
+        if (logDebug) log.info("maker {} pays {} in fees", maker.uid, makerFee);
 
         final long gainedAmountInBaseCurrency = CoreArithmeticUtils.calculateAmountAsk(size, spec);
         maker.accounts.addToValue(spec.baseCurrency, gainedAmountInBaseCurrency);

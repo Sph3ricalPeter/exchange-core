@@ -15,6 +15,7 @@
  */
 package exchange.core2.core.common;
 
+import exchange.core2.core.utils.SerializationUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -85,6 +86,9 @@ public final class Order implements WriteBytesMarshallable, IOrder {
     bytes.writeLong(reserveBidPrice);
     bytes.writeByte(action.getCode());
     bytes.writeLong(uid);
+    if (feeZone == null) {
+      feeZone = FeeZone.ZERO;
+    }
     feeZone.writeMarshallable(bytes);
     bytes.writeLong(timestamp);
     bytes.writeBoolean(hidden);
@@ -105,6 +109,8 @@ public final class Order implements WriteBytesMarshallable, IOrder {
         // + " C" + userCookie
         + " U"
         + uid
+        + " fz"
+        + feeZone
         + (hidden ? " H" : "")
         + "]";
   }

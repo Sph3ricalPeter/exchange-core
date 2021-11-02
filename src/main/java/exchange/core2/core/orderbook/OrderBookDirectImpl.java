@@ -155,6 +155,7 @@ public final class OrderBookDirectImpl implements IOrderBook {
     orderRecord.reserveBidPrice = cmd.reserveBidPrice;
     orderRecord.action = cmd.action;
     orderRecord.uid = cmd.uid;
+    orderRecord.feeZone = cmd.feeZone;
     orderRecord.timestamp = cmd.timestamp;
     orderRecord.filled = filledSize;
 
@@ -223,6 +224,8 @@ public final class OrderBookDirectImpl implements IOrderBook {
   }
 
   private long tryMatchInstantly(final IOrder takerOrder, final OrderCommand triggerCmd) {
+
+
 
     final boolean isBidAction = takerOrder.getAction() == OrderAction.BID;
 
@@ -433,6 +436,7 @@ public final class OrderBookDirectImpl implements IOrderBook {
 
     // update price
     orderToMove.price = cmd.price;
+    orderToMove.feeZone = cmd.feeZone;
 
     // fill action fields (for events handling)
     cmd.action = orderToMove.getAction();
@@ -895,6 +899,9 @@ public final class OrderBookDirectImpl implements IOrderBook {
       bytes.writeLong(reserveBidPrice);
       bytes.writeByte(action.getCode());
       bytes.writeLong(uid);
+      if (feeZone == null) {
+        feeZone = FeeZone.ZERO;
+      }
       feeZone.writeMarshallable(bytes);
       bytes.writeLong(timestamp);
       // bytes.writeInt(userCookie);
@@ -915,6 +922,8 @@ public final class OrderBookDirectImpl implements IOrderBook {
           // + " C" + userCookie
           + " U"
           + uid
+          + " fz:"
+          + feeZone
           + "]";
     }
 

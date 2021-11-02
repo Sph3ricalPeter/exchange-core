@@ -35,12 +35,12 @@ public final class CoreArithmeticUtils {
     // zone fee is calculated from base = size * price * quoteScale
     // base fee remains only dependent on order size
     public static long calculateAmountBidTakerFee(long size, long price, CoreSymbolSpecification spec, FeeZone feeZone) {
-        log.info("calculateAmountBidTakerFee: {} * ((1 + {}) * {} * {} + {}", size, feeZone.takerFeeFraction, price, spec.quoteScaleK, spec.takerBaseFee);
+        // log.info("calculateAmountBidTakerFee: {} * ((1 + {}) * {} * {} + {}", size, feeZone.takerFeeFraction, price, spec.quoteScaleK, spec.takerBaseFee);
         return Math.round(size * ((1 + feeZone.takerFeeFraction) * price * spec.quoteScaleK + spec.takerBaseFee));
     }
 
     public static long calculateAmountBidReleaseCorrMaker(long size, long price, long priceDiff, CoreSymbolSpecification spec, FeeZone feeZone) {
-        log.info("calculateAmountBidReleaseCorrMaker: {} * (({} - {}) * {} * {} + ({} - {})))", size, feeZone.takerFeeFraction, feeZone.makerFeeFraction, priceDiff, spec.quoteScaleK, spec.takerBaseFee, spec.makerBaseFee);
+        // log.info("calculateAmountBidReleaseCorrMaker: {} * (({} - {}) * {} * {} + ({} - {})))", size, feeZone.takerFeeFraction, feeZone.makerFeeFraction, priceDiff, spec.quoteScaleK, spec.takerBaseFee, spec.makerBaseFee);
         return Math.round(size * ((feeZone.takerFeeFraction - feeZone.makerFeeFraction) * price * spec.quoteScaleK + priceDiff * spec.quoteScaleK + (spec.takerBaseFee - spec.makerBaseFee)));
     }
 

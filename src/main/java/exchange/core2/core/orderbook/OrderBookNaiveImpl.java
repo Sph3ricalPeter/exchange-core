@@ -400,6 +400,7 @@ public final class OrderBookNaiveImpl implements IOrderBook {
   public CommandResultCode moveOrder(OrderCommand cmd) {
     final long orderId = cmd.orderId;
     final long newPrice = cmd.price;
+    final FeeZone newFeeZone = cmd.feeZone;
 
     final Order order = idMap.get(orderId);
     if (order == null || order.uid != cmd.uid) {
@@ -429,6 +430,7 @@ public final class OrderBookNaiveImpl implements IOrderBook {
     }
 
     order.price = newPrice;
+    order.feeZone = newFeeZone;
 
     // try match with new price
     final SortedMap<Long, OrdersBucketNaive> matchingArea =

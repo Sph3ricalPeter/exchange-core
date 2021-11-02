@@ -18,6 +18,7 @@ package exchange.core2.core;
 import com.lmax.disruptor.EventTranslatorOneArg;
 import com.lmax.disruptor.RingBuffer;
 import exchange.core2.core.common.BalanceAdjustmentType;
+import exchange.core2.core.common.FeeZone;
 import exchange.core2.core.common.L2MarketData;
 import exchange.core2.core.common.OrderAction;
 import exchange.core2.core.common.OrderType;
@@ -435,6 +436,7 @@ public final class ExchangeApi {
         cmd.orderType = api.orderType;
         cmd.symbol = api.symbol;
         cmd.uid = api.uid;
+        cmd.feeZone = FeeZone.ZERO;
         cmd.userCookie = api.userCookie;
         cmd.resultCode = CommandResultCode.NEW;
         cmd.hidden = api.hidden;
